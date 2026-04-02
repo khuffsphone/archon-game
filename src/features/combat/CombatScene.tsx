@@ -12,6 +12,7 @@ interface Props {
 export function CombatScene({ pack }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
+  const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
 
   const {
     state,
@@ -24,24 +25,35 @@ export function CombatScene({ pack }: Props) {
 
   // Trigger VFX overlay on each attack/death event
   useEffect(() => {
-    if (!state.lastEvent || state.phase === 'intro') return;
+    if (!state.lastEvent || state.lastEvent === 'none' || state.phase === 'intro') return;
 
-    // The defending faction is opposite of who is attacking (lastEventFaction = attacker)
-    const defenderFaction = state.lastEventFaction === 'light' ? 'dark' : 'light';
-    const defenderSide    = defenderFaction === 'light' ? 'left' : 'right';
+    // lastEventFaction IS the defender (set by CombatEngine as defFaction)
+    // No inversion needed — use directly.
+    const defenderFaction = state.lastEventFaction;
+    if (!defenderFaction) return;
+    const defenderSide: 'left' | 'right' = defenderFaction === 'light' ? 'left' : 'right';
 
-    let vfxId: string;
-    if (state.lastEvent === 'death') {
-      vfxId = defenderFaction === 'light' ? 'combat-death-burst-light' : 'combat-death-burst-dark';
-    } else {
-      vfxId = defenderFaction === 'light' ? 'combat-hit-flash-light' : 'combat-hit-flash-dark';
-    }
+    const vfxId = state.lastEvent === 'death'
+      ? (defenderFaction === 'light' ? 'combat-death-burst-light' : 'combat-death-burst-dark')
+      : (defenderFaction === 'light' ? 'combat-hit-flash-light'   : 'combat-hit-flash-dark');
 
     setVfxOverlay({ id: vfxId, side: defenderSide });
     const t = setTimeout(() => setVfxOverlay(null), 700);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.turnNumber, state.lastEvent]);
+
+  // Spawn VFX — fires when battle phase begins (start or rematch)
+  useEffect(() => {
+    if (state.phase !== 'battle') return;
+    // Show both spawn effects briefly at battle start / rematch
+    setSpawnVfx({ id: 'combat-spawn-light', side: 'left' });
+    const t1 = setTimeout(() => setSpawnVfx({ id: 'combat-spawn-dark', side: 'right' }), 300);
+    const t2 = setTimeout(() => setSpawnVfx(null), 900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  // fires once per phase-enter: intro→battle or reset→battle
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
 
   const arenaUrl = getAssetUrl(pack, state.turnFaction === 'light' ? 'arena-light' : 'arena-dark');
 
@@ -53,6 +65,16 @@ export function CombatScene({ pack }: Props) {
     >
       {/* Arena background */}
       <div className="arena-bg" id="arena-bg" />
+
+      {/* Ambient arena crest — subtle persistent overlay */}
+      {(() => {
+        const crUrl = getAssetUrl(pack, 'combat-ambient-arena');
+        return crUrl ? (
+          <div className="arena-crest" id="arena-crest">
+            <img src={crUrl} alt="" className="arena-crest-img" />
+          </div>
+        ) : null;
+      })()}
 
       {/* HUD top bar */}
       <header className="combat-hud">
@@ -116,7 +138,7 @@ export function CombatScene({ pack }: Props) {
             />
           </div>
 
-          {/* VFX overlay — flashes on the defending unit's side */}
+          {/* Hit/death VFX overlay — anchored to the DEFENDER's side */}
           {vfxOverlay && (() => {
             const url = getAssetUrl(pack, vfxOverlay.id);
             return url ? (
@@ -125,6 +147,19 @@ export function CombatScene({ pack }: Props) {
                 id={`vfx-overlay-${vfxOverlay.side}`}
               >
                 <img src={url} alt="" className="vfx-overlay-img" />
+              </div>
+            ) : null;
+          })()}
+
+          {/* Spawn VFX overlay — fires at battle start */}
+          {spawnVfx && (() => {
+            const url = getAssetUrl(pack, spawnVfx.id);
+            return url ? (
+              <div
+                className={`vfx-overlay vfx-overlay--${spawnVfx.side} vfx-overlay--spawn`}
+                id={`vfx-spawn-${spawnVfx.side}`}
+              >
+                <img src={url} alt="" className="vfx-overlay-img vfx-spawn-img" />
               </div>
             ) : null;
           })()}
