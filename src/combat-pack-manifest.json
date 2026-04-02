@@ -1,0 +1,265 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-04-02T20:53:36.087Z",
+  "tags": [
+    "knight",
+    "sorceress",
+    "arena",
+    "battle",
+    "sfx",
+    "voice",
+    "vfx"
+  ],
+  "assets": [
+    {
+      "id": "unit-light-knight-token",
+      "category": "unit",
+      "subcategory": "token",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/unit-light-knight-token-v1.png",
+      "hash": "87badaebe1cbad9c5df00ca1cbfad35ee7ca52a2ca7da27b4da13c9013f30ac7",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "unit-light-knight-portrait",
+      "category": "unit",
+      "subcategory": "portrait",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/unit-light-knight-portrait-v1.png",
+      "hash": "89a4f96ff0c9b0f9f2c806caf2c6576f2193d8e1bb819fe3a094fbd7aea9a363",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "unit-light-knight-defeated",
+      "category": "unit",
+      "subcategory": "defeated",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/unit-light-knight-defeated-v1.png",
+      "hash": "78dc4bc05776544477fd67cc9d9c314145b4cdb23269e5ce5fd052e438bc2d18",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "unit-dark-sorceress-token",
+      "category": "unit",
+      "subcategory": "token",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/unit-dark-sorceress-token-v1.png",
+      "hash": "8389daaf9e8c51a8df3a8d027a23e056bbe9469752bbd0aef18cc4eca05fcdf0",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "unit-dark-sorceress-portrait",
+      "category": "unit",
+      "subcategory": "portrait",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/unit-dark-sorceress-portrait-v1.png",
+      "hash": "5d6663765c96bb71539181e016464683b9e3703e8068e698c8ace54d1aa4d2e9",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "unit-dark-sorceress-defeated",
+      "category": "unit",
+      "subcategory": "defeated",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/unit-dark-sorceress-defeated-v1.png",
+      "hash": "ab0b00a816d18c59dd1abcada0ac7dff68193b64b236e27a01fe779bc11d9bcb",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "arena-light",
+      "category": "board",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/arena-light-v1.png",
+      "hash": "17fc137b8d3fb42598d67b198c54e797b6fc5384519108e673feb6845756a5bc",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "arena-dark",
+      "category": "board",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/arena-dark-v1.png",
+      "hash": "d6bbd23734049f5dbf2df137237414c2094b6006d36e9a589a67390cb0e7662c",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "music-battle-loop",
+      "category": "music",
+      "type": "audio",
+      "path": "/assets/music-battle-loop-v1.mp3",
+      "hash": "6be0f0dee7691e1e3a405ade99603c726b9463b45e4ce7b52f6d81fe16b395d1",
+      "mime_type": "audio/mpeg"
+    },
+    {
+      "id": "sfx-melee-hit",
+      "category": "sfx",
+      "type": "audio",
+      "path": "/assets/sfx-melee-hit-v1.wav",
+      "hash": "46423196b24743dccdb78dbf636bb28338ba09e72f181da65a3b88d6fe9baa8e",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "sfx-death-light",
+      "category": "sfx",
+      "type": "audio",
+      "path": "/assets/sfx-death-light-v1.wav",
+      "hash": "d1d21253f9f2dab18a80ddc7fe564df5f8020f89aef9407deb32b53e42673810",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "sfx-death-dark",
+      "category": "sfx",
+      "type": "audio",
+      "path": "/assets/sfx-death-dark-v1.wav",
+      "hash": "d1d21253f9f2dab18a80ddc7fe564df5f8020f89aef9407deb32b53e42673810",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "voice-light-turn",
+      "category": "voice",
+      "type": "audio",
+      "path": "/assets/voice-light-turn-v1.wav",
+      "hash": "35cc33248d879ab6ec398f7d87e0913e59e3d89b9cd68c0581a5eadca585139b",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "voice-dark-turn",
+      "category": "voice",
+      "type": "audio",
+      "path": "/assets/voice-dark-turn-v1.wav",
+      "hash": "160f8fa74268e7aa4bd4972c22335903626c8e0b5d5f4a430342f92e3c445411",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "voice-battle",
+      "category": "voice",
+      "type": "audio",
+      "path": "/assets/voice-battle-v1.wav",
+      "hash": "e3bfdfae2b1361f9725423411a4f92492052c2e533fcc716d87c63d35f2054c0",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "voice-victory",
+      "category": "voice",
+      "type": "audio",
+      "path": "/assets/voice-victory-v1.wav",
+      "hash": "f541e0f4458738dff45f03f9124eca8d7ae2e6cebc7533416c84a71fe2eb7936",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "voice-defeat",
+      "category": "voice",
+      "type": "audio",
+      "path": "/assets/voice-defeat-v1.wav",
+      "hash": "a0fc21e6e5e4b198f9dc852260999aeefb0c651361732a8394e812d6cfdaf408",
+      "mime_type": "audio/wav"
+    },
+    {
+      "id": "combat-hit-flash-light",
+      "category": "spell",
+      "subcategory": "hit_flash",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/combat-hit-flash-light-v1.png",
+      "hash": "72ffd4590eeaf68a65102a7303a4a7fc83fc49a935b6a0cdca19abd360eac5d6",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-hit-flash-dark",
+      "category": "spell",
+      "subcategory": "hit_flash",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/combat-hit-flash-dark-v1.png",
+      "hash": "8c771bee25f4fc3095e33c7f4ee262b570e0965102e57d7331641f49823bd55f",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-death-burst-light",
+      "category": "spell",
+      "subcategory": "death",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/combat-death-burst-light-v1.png",
+      "hash": "c5e26053674c23ab470d17fe82686a250b07b0fcb13c0e34b8f415662e02db4f",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-death-burst-dark",
+      "category": "spell",
+      "subcategory": "death",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/combat-death-burst-dark-v1.png",
+      "hash": "86618a66e6b1ce97f47982d68524c12252d3b57221af367e67105ab18c21349b",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-spawn-light",
+      "category": "spell",
+      "subcategory": "spawn",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/combat-spawn-light-v1.png",
+      "hash": "595f5e7661c0ab5583f911c0bfd585b7fb40995fe06c67518c82a17283b61c9e",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-spawn-dark",
+      "category": "spell",
+      "subcategory": "spawn",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/combat-spawn-dark-v1.png",
+      "hash": "a339d390a47c80b58f80cf14750730895b02f99b0b11560e64d4674f1667a218",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-heal-pulse",
+      "category": "spell",
+      "subcategory": "heal",
+      "faction": "neutral",
+      "type": "image",
+      "path": "/assets/combat-heal-pulse-v1.png",
+      "hash": "8b71479b6975c070c6f3c7dbf6286457a77da2b24e065377f4aaa8f6186e0f46",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-status-poison",
+      "category": "spell",
+      "subcategory": "status",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/combat-status-poison-v1.png",
+      "hash": "6bd9af855e0c298c720fa8b6a59594b4da2859428977c0221c6758ac0e3bc17e",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-status-stun",
+      "category": "spell",
+      "subcategory": "status",
+      "faction": "neutral",
+      "type": "image",
+      "path": "/assets/combat-status-stun-v1.png",
+      "hash": "e0924ebbd0bae9de5669bd51466bc8c30c485afa65457b2231ba527857282036",
+      "mime_type": "image/png"
+    },
+    {
+      "id": "combat-ambient-arena",
+      "category": "spell",
+      "subcategory": "ambient",
+      "faction": "neutral",
+      "type": "image",
+      "path": "/assets/combat-ambient-arena-v1.png",
+      "hash": "db451dc55514a73264dd349038ea8ca68ee51152179dd42df5f619988ec22dfd",
+      "mime_type": "image/png"
+    }
+  ]
+}
