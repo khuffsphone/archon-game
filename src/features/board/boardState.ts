@@ -185,6 +185,108 @@ export function makeAdjacentContestSetup(): BoardState {
 
 
 
+/**
+ * makeDarkAttackerContestSetup
+ * Deterministic dark-attacker test setup for 0.3 Milestone A QA.
+ * Places Sorceress (dark) at (4,5) and Herald (light) at (4,3) — 2 squares apart.
+ * Sorceress range = 2, so (4,3) is a legal attack target.
+ * turnFaction = 'dark' so the dark player moves first.
+ * Triggering it proves the dark→combat→board round-trip.
+ *
+ * Activate via URL: ?setup=dark-attacker
+ */
+export function makeDarkAttackerContestSetup(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  // Sorceress (dark) at (4,5), Herald (light) at (4,3)
+  const contestRoster: Array<{ entry: (typeof ALPHA_ROSTER)[0]; coord: BoardCoord }> = [
+    { entry: ALPHA_ROSTER[2], coord: { row: 4, col: 5 } }, // Sorceress (dark)
+    { entry: ALPHA_ROSTER[1], coord: { row: 4, col: 3 } }, // Herald (light)
+  ];
+
+  for (const { entry, coord } of contestRoster) {
+    const piece: BoardPiece = {
+      pieceId: entry.pieceId,
+      name: entry.name,
+      faction: entry.faction,
+      role: entry.role,
+      coord,
+      hp: entry.hp,
+      maxHp: entry.hp,
+      isDead: false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+    squares[coord.row][coord.col].luminance = entry.faction;
+  }
+
+  // Mark contested zone between them
+  squares[4][4].luminance = 'contested';
+
+  return {
+    phase: 'active',
+    turnFaction: 'dark',   // dark moves first
+    turnNumber: 1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves: [],
+  };
+}
+
+/**
+ * makeGameOverSetup
+ * Deterministic game-over proof setup for 0.3 Milestone C QA.
+ * One piece per side — Knight (light) at (4,3), Sorceress (dark) at (4,5).
+ * turnFaction = 'light'. When Knight wins:
+ *   - Sorceress eliminated
+ *   - No dark pieces alive → applyCombatResult sets phase = 'gameover'
+ *   - BoardScene renders '☀ Light Wins!' banner
+ *
+ * Activate via URL: ?setup=gameover
+ */
+export function makeGameOverSetup(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  // Single piece per side — same positions as adjacent for familiarity
+  const roster: Array<{ entry: (typeof ALPHA_ROSTER)[0]; coord: BoardCoord }> = [
+    { entry: ALPHA_ROSTER[0], coord: { row: 4, col: 3 } }, // Knight (light) — sole light piece
+    { entry: ALPHA_ROSTER[2], coord: { row: 4, col: 5 } }, // Sorceress (dark) — sole dark piece
+  ];
+
+  for (const { entry, coord } of roster) {
+    const piece: BoardPiece = {
+      pieceId: entry.pieceId,
+      name: entry.name,
+      faction: entry.faction,
+      role: entry.role,
+      coord,
+      hp: entry.hp,
+      maxHp: entry.hp,
+      isDead: false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+    squares[coord.row][coord.col].luminance = entry.faction;
+  }
+
+  squares[4][4].luminance = 'contested';
+
+  return {
+    phase: 'active',
+    turnFaction: 'light',
+    turnNumber: 1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves: [],
+  };
+}
+
 // ─── Asset Coverage Check ─────────────────────────────────────────────────────
 
 export function checkBoardAssets(pack: CombatPackManifest): {
