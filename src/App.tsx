@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { CombatScene } from './features/combat/CombatScene';
 import { CombatBridge } from './features/combat/CombatBridge';
 import { BoardScene } from './features/board/BoardScene';
 import { CombatPackManifest } from './lib/types';
@@ -8,7 +7,12 @@ import combatPackData from './combat-pack-manifest.json';
 import type {
   CombatLaunchPayload,
   CombatBridgeCallbacks,
+  BoardState,
 } from './lib/board-combat-contract';
+import {
+  makeInitialBoardState,
+  makeAdjacentContestSetup,
+} from './features/board/boardState';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -28,10 +32,24 @@ function getInitialMode(): AppMode {
   return params.get('mode') === 'combat' ? 'combat' : 'board';
 }
 
+function getInitialBoardState(): BoardState {
+  const params = new URLSearchParams(window.location.search);
+  // ?setup=adjacent places Knight and Sorceress one legal-move apart for contest QA
+  return params.get('setup') === 'adjacent'
+    ? makeAdjacentContestSetup()
+    : makeInitialBoardState();
+}
+
 export default function App() {
   const [pack, setPack] = useState<CombatPackManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AppMode>(getInitialMode);
+
+  // ── Board state lifted to App so it survives mode switches ────────────────
+  // BoardScene is a controlled component — App owns boardState, BoardScene renders
+  // it and fires onBoardStateChange. Switching to Combat mode no longer unmounts
+  // and resets the board because BoardScene simply isn't rendered (not destroyed).
+  const [boardState, setBoardState] = useState<BoardState>(getInitialBoardState);
 
   // Combat launch state (when board triggers a combat)
   const [combatPayload, setCombatPayload] = useState<CombatLaunchPayload | null>(null);
@@ -60,7 +78,7 @@ export default function App() {
     setCombatCallbacks({
       onResult: (result) => {
         callbacks.onResult(result);
-        // Return to board after result is applied
+        // Clear combat payload — board renders with updated state
         setCombatPayload(null);
         setCombatCallbacks(null);
       },
@@ -122,12 +140,18 @@ export default function App() {
     return (
       <div className="app-root">
         {modeToggle}
-        <BoardScene pack={pack} onLaunchCombat={handleLaunchCombat} />
+        <BoardScene
+          pack={pack}
+          boardState={boardState}
+          onBoardStateChange={setBoardState}
+          onLaunchCombat={handleLaunchCombat}
+        />
       </div>
     );
   }
 
-  // Standalone combat mode — preserves v1.1.1 baseline exactly
+  // Standalone combat mode — preserves v1.1.1 baseline exactly.
+  // boardState is NOT reset here — it lives in App's useState and persists.
   return (
     <div className="app-root">
       {modeToggle}
@@ -135,4 +159,3 @@ export default function App() {
     </div>
   );
 }
-

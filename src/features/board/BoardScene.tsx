@@ -1,10 +1,14 @@
 /**
  * BoardScene.tsx  —  Lane 3 owner
  * The 9×9 Archon board shell.
- * Renders the board, pieces, luminance states, selection, and legal move overlays.
- * Fires CombatBridgeCallbacks when a contested square is entered.
+ *
+ * CONTROLLED COMPONENT (0.2 change):
+ * boardState is now passed down from App.tsx via props.
+ * onBoardStateChange fires when the board needs to update state.
+ * This ensures board state survives mode switches (no reset when switching
+ * to the standalone combat mode tab and back).
  */
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import type { CombatPackManifest } from '../../lib/types';
 import type {
   BoardState, BoardCoord, CombatLaunchPayload, CombatBridgeCallbacks,
@@ -17,12 +21,13 @@ import { getAssetUrl } from '../../lib/packLoader';
 
 interface Props {
   pack: CombatPackManifest;
+  /** Controlled: board state owned by parent (App.tsx) */
+  boardState: BoardState;
+  onBoardStateChange: (next: BoardState) => void;
   onLaunchCombat: (payload: CombatLaunchPayload, callbacks: CombatBridgeCallbacks) => void;
 }
 
-export function BoardScene({ pack, onLaunchCombat }: Props) {
-  const [board, setBoard] = useState<BoardState>(makeInitialBoardState);
-
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
@@ -37,7 +42,7 @@ export function BoardScene({ pack, onLaunchCombat }: Props) {
 
     // If clicking on own piece — select it
     if (clickedPiece && clickedPiece.faction === board.turnFaction && !clickedPiece.isDead) {
-      setBoard(prev => selectPiece(prev, clickedPieceId!));
+      setBoard(selectPiece(board, clickedPieceId!));
       return;
     }
 
@@ -58,10 +63,10 @@ export function BoardScene({ pack, onLaunchCombat }: Props) {
 
         const callbacks: CombatBridgeCallbacks = {
           onResult: (combatResult) => {
-            setBoard(prev => applyCombatResult(prev, combatResult));
+            setBoard(applyCombatResult(result.nextState, combatResult));
           },
           onCancel: () => {
-            setBoard(prev => ({ ...prev, phase: 'active', selectedPieceId: null, legalMoves: [] }));
+            setBoard({ ...result.nextState, phase: 'active', selectedPieceId: null, legalMoves: [] });
           },
         };
 
@@ -73,8 +78,8 @@ export function BoardScene({ pack, onLaunchCombat }: Props) {
     }
 
     // Otherwise deselect
-    setBoard(prev => deselectPiece(prev));
-  }, [board, pack, onLaunchCombat]);
+    setBoard(deselectPiece(board));
+  }, [board, pack, onLaunchCombat, setBoard]);
 
   const winner = board.phase === 'gameover'
     ? (Object.values(board.pieces).some(p => p.faction === 'light' && !p.isDead) ? 'light' : 'dark')
@@ -129,7 +134,7 @@ export function BoardScene({ pack, onLaunchCombat }: Props) {
               board.pieces[board.selectedPieceId!]?.coord.col === colIdx;
             const isLegal = board.legalMoves.some(m => m.row === rowIdx && m.col === colIdx);
             const piece = square.pieceId ? board.pieces[square.pieceId] : null;
-            const hasEnemy = isLegal && piece && piece.faction !== board.turnFaction;
+            const hasEnemy = isLegal && piece !== null && piece.faction !== board.turnFaction;
 
             return (
               <div
