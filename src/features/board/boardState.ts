@@ -132,6 +132,59 @@ export function makeInitialBoardState(): BoardState {
   };
 }
 
+/**
+ * makeAdjacentContestSetup
+ * Deterministic contest test setup for Milestone C QA.
+ * Places Knight (light) at (4,3) and Sorceress (dark) at (4,5) — 2 squares apart.
+ * Knight's legal range = 2, so (4,5) is a legal attack target.
+ * Triggering it proves the board→combat→board round-trip.
+ *
+ * Activate via URL: ?setup=adjacent
+ */
+export function makeAdjacentContestSetup(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  // Only place the two contest participants
+  const contestRoster: Array<{ entry: (typeof ALPHA_ROSTER)[0]; coord: BoardCoord }> = [
+    { entry: ALPHA_ROSTER[0], coord: { row: 4, col: 3 } }, // Knight (light)
+    { entry: ALPHA_ROSTER[2], coord: { row: 4, col: 5 } }, // Sorceress (dark)
+  ];
+
+  for (const { entry, coord } of contestRoster) {
+    const piece: BoardPiece = {
+      pieceId: entry.pieceId,
+      name: entry.name,
+      faction: entry.faction,
+      role: entry.role,
+      coord,
+      hp: entry.hp,
+      maxHp: entry.hp,
+      isDead: false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+    // Mark squares around each piece
+    squares[coord.row][coord.col].luminance = entry.faction;
+  }
+
+  // Mark contested zone between them
+  squares[4][4].luminance = 'contested';
+
+  return {
+    phase: 'active',
+    turnFaction: 'light',
+    turnNumber: 1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves: [],
+  };
+}
+
+
+
 // ─── Asset Coverage Check ─────────────────────────────────────────────────────
 
 export function checkBoardAssets(pack: CombatPackManifest): {
