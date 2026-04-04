@@ -12,6 +12,8 @@ import type {
 import {
   makeInitialBoardState,
   makeAdjacentContestSetup,
+  makeDarkAttackerContestSetup,
+  makeGameOverSetup,
 } from './features/board/boardState';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
@@ -34,10 +36,14 @@ function getInitialMode(): AppMode {
 
 function getInitialBoardState(): BoardState {
   const params = new URLSearchParams(window.location.search);
+  const setup = params.get('setup');
   // ?setup=adjacent places Knight and Sorceress one legal-move apart for contest QA
-  return params.get('setup') === 'adjacent'
-    ? makeAdjacentContestSetup()
-    : makeInitialBoardState();
+  if (setup === 'adjacent') return makeAdjacentContestSetup();
+  // ?setup=dark-attacker places Sorceress (dark) attacking Herald (light) for 0.3 QA
+  if (setup === 'dark-attacker') return makeDarkAttackerContestSetup();
+  // ?setup=gameover places one piece per side for a quick game-over proof
+  if (setup === 'gameover') return makeGameOverSetup();
+  return makeInitialBoardState();
 }
 
 export default function App() {
