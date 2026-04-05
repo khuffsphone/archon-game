@@ -287,6 +287,73 @@ export function makeGameOverSetup(): BoardState {
   };
 }
 
+/**
+ * makeDarkWinsSetup
+ * Deterministic dark-wins proof setup for 0.4 KI-001 + KI-002.
+ *
+ * KI-001: Dark faction winning a combat (not yet proven in 0.3)
+ * KI-002: Dark-wins gameover — "🌑 Dark Wins!" banner
+ *
+ * Setup:
+ *   - Sorceress (dark)  at (4,5) — HP: 16 (full health)
+ *   - Knight    (light) at (4,3) — HP: 1  (dies on first hit)
+ *   - turnFaction = 'dark' → Sorceress attacks first
+ *
+ * Expected flow:
+ *   1. Player clicks Sorceress → selects her, legal moves shown
+ *   2. Player clicks Knight at (4,3) → contest detected → CombatBridge launches
+ *   3. Combat: Sorceress attacks Knight (HP=1) → Knight dies round 1
+ *   4. Outcome: attacker_wins → board receives CombatResultPayload
+ *   5. applyCombatResult: Knight marked dead, Sorceress advances to (4,3)
+ *   6. Win check: no light pieces alive → phase = 'gameover'
+ *   7. BoardScene renders "🌑 Dark Wins!" gameover banner
+ *
+ * Activate via URL: ?setup=dark-wins
+ */
+export function makeDarkWinsSetup(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  // Sorceress (dark) at (4,5), Knight (light) at (4,3) with HP=1 (dies on first hit)
+  const darkSorceress = ALPHA_ROSTER[2]; // dark-sorceress
+  const lightKnight   = ALPHA_ROSTER[0]; // light-knight
+
+  const roster: Array<{ entry: (typeof ALPHA_ROSTER)[0]; coord: BoardCoord; hpOverride?: number }> = [
+    { entry: darkSorceress, coord: { row: 4, col: 5 } },           // full HP=16
+    { entry: lightKnight,   coord: { row: 4, col: 3 }, hpOverride: 1 }, // HP=1 → dies on first hit
+  ];
+
+  for (const { entry, coord, hpOverride } of roster) {
+    const hp = hpOverride ?? entry.hp;
+    const piece: BoardPiece = {
+      pieceId: entry.pieceId,
+      name: entry.name,
+      faction: entry.faction,
+      role: entry.role,
+      coord,
+      hp,
+      maxHp: entry.hp, // maxHp always reflects roster value
+      isDead: false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+    squares[coord.row][coord.col].luminance = entry.faction;
+  }
+
+  squares[4][4].luminance = 'contested';
+
+  return {
+    phase: 'active',
+    turnFaction: 'dark',   // dark moves first — Sorceress is the attacker
+    turnNumber: 1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves: [],
+  };
+}
+
 // ─── Asset Coverage Check ─────────────────────────────────────────────────────
 
 export function checkBoardAssets(pack: CombatPackManifest): {
