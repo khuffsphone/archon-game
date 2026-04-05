@@ -2,10 +2,28 @@ import type { CombatState, Faction, UnitState } from '../../lib/types';
 
 // ─── Initial State Factory ────────────────────────────────────────────────────
 
-export function makeInitialState(): CombatState {
+export interface CombatInitOverrides {
+  /** Override starting HP for light unit (Knight). Defaults to 20. */
+  lightHp?: number;
+  /** Override starting HP for dark unit (Sorceress). Defaults to 16. */
+  darkHp?: number;
+  /** Override which faction attacks first. Defaults to 'light'. */
+  firstTurn?: Faction;
+}
+
+/**
+ * makeInitialState
+ * Produces a fresh CombatState ready for the intro phase.
+ * All params are optional — zero-arg call is identical to the original behaviour.
+ * Overrides are used by CombatBridge to inject board piece HP into combat.
+ */
+export function makeInitialState(overrides?: CombatInitOverrides): CombatState {
+  const lightHp = overrides?.lightHp ?? 20;
+  const darkHp  = overrides?.darkHp  ?? 16;
+
   const knight: UnitState = {
     id: 'knight', name: 'Knight', faction: 'light',
-    hp: 20, maxHp: 20,
+    hp: lightHp, maxHp: 20,  // maxHp = roster max, hp = current (may be overridden)
     tokenId:    'unit-light-knight-token',
     portraitId: 'unit-light-knight-portrait',
     defeatedId: 'unit-light-knight-defeated',
@@ -13,7 +31,7 @@ export function makeInitialState(): CombatState {
   };
   const sorceress: UnitState = {
     id: 'sorceress', name: 'Sorceress', faction: 'dark',
-    hp: 16, maxHp: 16,
+    hp: darkHp, maxHp: 16,
     tokenId:    'unit-dark-sorceress-token',
     portraitId: 'unit-dark-sorceress-portrait',
     defeatedId: 'unit-dark-sorceress-defeated',
@@ -21,7 +39,7 @@ export function makeInitialState(): CombatState {
   };
   return {
     phase: 'intro',
-    turnFaction: 'light',
+    turnFaction: overrides?.firstTurn ?? 'light',
     turnNumber: 1,
     units: { light: knight, dark: sorceress },
     lastEvent: 'none',
