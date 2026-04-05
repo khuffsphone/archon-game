@@ -150,12 +150,11 @@ interface CombatSceneWithResultProps {
 function CombatSceneWithResult({
   pack, attackerName, defenderName, attackerFaction, defenderFaction, initOverrides, onResult,
 }: CombatSceneWithResultProps) {
-  // We render CombatScene normally.
-  // Victory detection: poll the DOM for the victory banner to appear,
-  // then read the winner and fire onResult.
-  // This avoids modifying CombatScene.tsx — the bridge stays in this file.
   const pollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasDetected = useRef(false);
+  // KI-009/010: once victory is detected, show a "returning" overlay so the
+  // Rematch button is covered and cannot be clicked before onResult() fires.
+  const [combatDone, setCombatDone] = useState(false);
 
   useEffect(() => {
     pollerRef.current = setInterval(() => {
@@ -180,6 +179,8 @@ function CombatSceneWithResult({
           }
         });
 
+        // Show the overlay first, then fire result (App unmounts bridge on result)
+        setCombatDone(true);
         onResult({ winner, remainingHp });
       }
     }, 250);
@@ -189,5 +190,31 @@ function CombatSceneWithResult({
     };
   }, [onResult]);
 
-  return <CombatScene pack={pack} initialOverrides={initOverrides} />;
+  return (
+    <div style={{ position: 'relative' }}>
+      <CombatScene
+        pack={pack}
+        initialOverrides={initOverrides}
+        attackerName={attackerName}
+        defenderName={defenderName}
+      />
+      {/* KI-009/010: overlay covers Rematch button once victory is detected */}
+      {combatDone && (
+        <div
+          id="combat-done-overlay"
+          style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: 50,
+            pointerEvents: 'all',
+          }}
+        >
+          <span style={{ color: '#ffd700', fontSize: '1.2rem', fontWeight: 700 }}>
+            ⬅ Returning to board…
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }

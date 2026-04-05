@@ -10,9 +10,12 @@ interface Props {
   pack: CombatPackManifest;
   /** Optional overrides from the board layer (HP, first-turn faction). Standalone mode omits this. */
   initialOverrides?: CombatInitOverrides;
+  /** Piece names from the board layer for the intro subtitle (KI-006). Standalone mode omits these. */
+  attackerName?: string;
+  defenderName?: string;
 }
 
-export function CombatScene({ pack, initialOverrides }: Props) {
+export function CombatScene({ pack, initialOverrides, attackerName, defenderName }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
@@ -107,7 +110,12 @@ export function CombatScene({ pack, initialOverrides }: Props) {
         <div className="intro-overlay" id="intro-overlay">
           <div className="intro-card">
             <h1 className="intro-title">⚔ Archon</h1>
-            <p className="intro-sub">Knight vs Sorceress — Combat Slice v1</p>
+            <p className="intro-sub">
+              {attackerName && defenderName
+                ? `${attackerName} vs ${defenderName}`
+                : 'Knight vs Sorceress — Combat Slice v1'
+              }
+            </p>
             <button
               id="btn-start-battle"
               className="btn-start"

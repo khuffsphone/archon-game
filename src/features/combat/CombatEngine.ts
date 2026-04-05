@@ -23,7 +23,7 @@ export function makeInitialState(overrides?: CombatInitOverrides): CombatState {
 
   const knight: UnitState = {
     id: 'knight', name: 'Knight', faction: 'light',
-    hp: lightHp, maxHp: 20,  // maxHp = roster max, hp = current (may be overridden)
+    hp: lightHp, maxHp: lightHp,  // maxHp = scenario start HP (KI-007: shows "1/1 HP" not "1/20 HP")
     tokenId:    'unit-light-knight-token',
     portraitId: 'unit-light-knight-portrait',
     defeatedId: 'unit-light-knight-defeated',
@@ -31,7 +31,7 @@ export function makeInitialState(overrides?: CombatInitOverrides): CombatState {
   };
   const sorceress: UnitState = {
     id: 'sorceress', name: 'Sorceress', faction: 'dark',
-    hp: darkHp, maxHp: 16,
+    hp: darkHp, maxHp: darkHp,  // maxHp = scenario start HP (KI-007)
     tokenId:    'unit-dark-sorceress-token',
     portraitId: 'unit-dark-sorceress-portrait',
     defeatedId: 'unit-dark-sorceress-defeated',
