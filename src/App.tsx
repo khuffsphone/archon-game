@@ -14,6 +14,7 @@ import {
   makeAdjacentContestSetup,
   makeDarkAttackerContestSetup,
   makeGameOverSetup,
+  makeDarkWinsSetup,
 } from './features/board/boardState';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
@@ -43,6 +44,9 @@ function getInitialBoardState(): BoardState {
   if (setup === 'dark-attacker') return makeDarkAttackerContestSetup();
   // ?setup=gameover places one piece per side for a quick game-over proof
   if (setup === 'gameover') return makeGameOverSetup();
+  // ?setup=dark-wins — Sorceress (dark, HP=16) vs Knight (light, HP=1), dark moves first
+  // Proves KI-001 (dark wins combat) + KI-002 (dark wins gameover) together
+  if (setup === 'dark-wins') return makeDarkWinsSetup();
   return makeInitialBoardState();
 }
 

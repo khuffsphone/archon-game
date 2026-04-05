@@ -1,15 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CombatState, CombatPackManifest } from '../../lib/types';
 import { makeInitialState, processAttack, startBattle, resetBattle } from './CombatEngine';
+import type { CombatInitOverrides } from './CombatEngine';
 import { getAssetUrl } from '../../lib/packLoader';
 
 interface UseCombatOptions {
   pack: CombatPackManifest;
   audioEnabled: boolean;
+  /** Optional HP + first-turn overrides from the board layer */
+  initialOverrides?: CombatInitOverrides;
 }
 
-export function useCombat({ pack, audioEnabled }: UseCombatOptions) {
-  const [state, setState] = useState<CombatState>(makeInitialState);
+export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOptions) {
+  const [state, setState] = useState<CombatState>(() => makeInitialState(initialOverrides));
   const [animating, setAnimating] = useState(false);
   const battleMusicRef = useRef<HTMLAudioElement | null>(null);
 

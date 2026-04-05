@@ -61,17 +61,14 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
   const { attacker, defender, pack } = payload;
   const hasReported = useRef(false);
 
-  // Build a modified pack that ensures the right pieces are in the manifest.
-  // The board payload already has confirmed asset IDs from the same pack.
-  // CombatScene uses pack.assets to look up tokens/portraits — no mutation needed
-  // as long as the board roster matches the pack exactly (enforced by checkBoardAssets).
-
-  // We intercept the outcome by monitoring when CombatScene reaches victory/defeat.
-  // CombatScene doesn't expose a result callback directly — we use a DOM observation
-  // technique to detect the victory banner, then fire our callback.
-  //
-  // NOTE: In the board-launched mode, CombatScene's "Rematch" button is replaced
-  // by our "Return to Board" button which fires callbacks.onResult().
+  // Build HP overrides from board piece state so CombatEngine uses the actual
+  // current HP values (e.g. HP=1 from ?setup=dark-wins) rather than roster defaults.
+  // Map board faction → combat engine slot (light/dark).
+  const initOverrides: CombatInitOverrides = {
+    lightHp: attacker.faction === 'light' ? attacker.hp : defender.hp,
+    darkHp:  attacker.faction === 'dark'  ? attacker.hp : defender.hp,
+    firstTurn: attacker.faction, // board attacker always goes first in combat
+  };
 
   return (
     <div className="combat-bridge-wrapper" id="combat-bridge-wrapper">
@@ -102,6 +99,7 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
         defenderName={defender.name}
         attackerFaction={attacker.faction}
         defenderFaction={defender.faction}
+        initOverrides={initOverrides}
         onResult={(result) => {
           if (!hasReported.current) {
             hasReported.current = true;
@@ -130,7 +128,7 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
 // and fires a result callback. Replaces "Rematch" with "Return to Board".
 
 import { useState } from 'react';
-import { makeInitialState } from './CombatEngine';
+import { makeInitialState, CombatInitOverrides } from './CombatEngine';
 import type { Faction } from '../../lib/board-combat-contract';
 
 interface CombatResult {
@@ -144,11 +142,13 @@ interface CombatSceneWithResultProps {
   defenderName: string;
   attackerFaction: Faction;
   defenderFaction: Faction;
+  /** HP overrides from board piece state — injected into CombatEngine initial state */
+  initOverrides?: CombatInitOverrides;
   onResult: (result: CombatResult) => void;
 }
 
 function CombatSceneWithResult({
-  pack, attackerName, defenderName, attackerFaction, defenderFaction, onResult,
+  pack, attackerName, defenderName, attackerFaction, defenderFaction, initOverrides, onResult,
 }: CombatSceneWithResultProps) {
   // We render CombatScene normally.
   // Victory detection: poll the DOM for the victory banner to appear,
@@ -189,5 +189,5 @@ function CombatSceneWithResult({
     };
   }, [onResult]);
 
-  return <CombatScene pack={pack} />;
+  return <CombatScene pack={pack} initialOverrides={initOverrides} />;
 }

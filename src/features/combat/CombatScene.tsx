@@ -4,12 +4,15 @@ import { useCombat } from './useCombat';
 import { UnitToken } from '../../components/UnitToken';
 import { TurnBanner } from '../../components/TurnBanner';
 import { getAssetUrl } from '../../lib/packLoader';
+import type { CombatInitOverrides } from './CombatEngine';
 
 interface Props {
   pack: CombatPackManifest;
+  /** Optional overrides from the board layer (HP, first-turn faction). Standalone mode omits this. */
+  initialOverrides?: CombatInitOverrides;
 }
 
-export function CombatScene({ pack }: Props) {
+export function CombatScene({ pack, initialOverrides }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
@@ -21,7 +24,7 @@ export function CombatScene({ pack }: Props) {
     handleAttack,
     handleReset,
     handleTurnVoice,
-  } = useCombat({ pack, audioEnabled });
+  } = useCombat({ pack, audioEnabled, initialOverrides });
 
   // Trigger VFX overlay on each attack/death event
   useEffect(() => {
