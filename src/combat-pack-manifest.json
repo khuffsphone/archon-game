@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-04-02T20:53:36.087Z",
+  "generated_at": "2026-04-05T23:52:55.721Z",
   "tags": [
     "knight",
     "sorceress",
@@ -8,7 +8,8 @@
     "battle",
     "sfx",
     "voice",
-    "vfx"
+    "vfx",
+    "external-v1"
   ],
   "assets": [
     {
@@ -260,6 +261,94 @@
       "path": "/assets/combat-ambient-arena-v1.png",
       "hash": "db451dc55514a73264dd349038ea8ca68ee51152179dd42df5f619988ec22dfd",
       "mime_type": "image/png"
+    },
+    {
+      "id": "ui-button-hover-v1",
+      "category": "ui",
+      "faction": "neutral",
+      "type": "image",
+      "path": "/assets/ui-button-hover-v1.png",
+      "hash": "63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058",
+      "mime_type": "image/png",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "spell-heal-icon-v1",
+      "category": "spell",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/spell-heal-icon-v1.png",
+      "hash": "63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058",
+      "mime_type": "image/png",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "spell-imprison-icon-v1",
+      "category": "spell",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/spell-imprison-icon-v1.png",
+      "hash": "63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058",
+      "mime_type": "image/png",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "combat-status-stun-v1",
+      "category": "spell",
+      "faction": "neutral",
+      "type": "image",
+      "path": "/assets/combat-status-stun-v1.png",
+      "hash": "e0924ebbd0bae9de5669bd51466bc8c30c485afa65457b2231ba527857282036",
+      "mime_type": "image/png",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "sfx-magic-bolt-v1",
+      "category": "sfx",
+      "faction": "neutral",
+      "type": "audio",
+      "path": "/assets/sfx-magic-bolt-v1.wav",
+      "hash": "8b8fbafe8679076454429756fa72f11d5f442c87381cc6a4285451d826a9e629",
+      "mime_type": "audio/wav",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "sfx-melee-hit-heavy-v1",
+      "category": "sfx",
+      "faction": "neutral",
+      "type": "audio",
+      "path": "/assets/sfx-melee-hit-heavy-v1.wav",
+      "hash": "8b8fbafe8679076454429756fa72f11d5f442c87381cc6a4285451d826a9e629",
+      "mime_type": "audio/wav",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "sfx-teleport-dark-v1",
+      "category": "sfx",
+      "faction": "dark",
+      "type": "audio",
+      "path": "/assets/sfx-teleport-dark-v1.wav",
+      "hash": "8b8fbafe8679076454429756fa72f11d5f442c87381cc6a4285451d826a9e629",
+      "mime_type": "audio/wav",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
+    },
+    {
+      "id": "sfx-teleport-light-v1",
+      "category": "sfx",
+      "faction": "light",
+      "type": "audio",
+      "path": "/assets/sfx-teleport-light-v1.wav",
+      "hash": "8b8fbafe8679076454429756fa72f11d5f442c87381cc6a4285451d826a9e629",
+      "mime_type": "audio/wav",
+      "source_pack": "archon-external-pack-v1",
+      "source_milestone": "0.5"
     }
   ]
 }
