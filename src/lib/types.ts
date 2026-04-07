@@ -35,6 +35,10 @@ export interface UnitState {
   portraitId: string;   // asset id for portrait image
   defeatedId: string;   // asset id for defeated image
   isDead: boolean;
+  /** 0.6: unit skips its next attack turn. Cleared after the skip. */
+  stunned?: boolean;
+  /** 0.6: future-facing board flag. No board effect in 0.6. */
+  imprisoned?: boolean;
 }
 
 export interface CombatState {

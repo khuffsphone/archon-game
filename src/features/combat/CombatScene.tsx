@@ -16,8 +16,6 @@ export function CombatScene({ pack, initialOverrides }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
-  // NOTE: combat-status-stun-v1 deferred — no stun mechanic exists in CombatEngine yet.
-
   const {
     state,
     animating,
@@ -25,6 +23,7 @@ export function CombatScene({ pack, initialOverrides }: Props) {
     handleAttack,
     handleReset,
     handleTurnVoice,
+    handleCastSpell,
   } = useCombat({ pack, audioEnabled, initialOverrides });
 
   // Trigger VFX overlay on each attack/death event
@@ -168,6 +167,25 @@ export function CombatScene({ pack, initialOverrides }: Props) {
             ) : null;
           })()}
 
+          {/* Stun status overlay (0.6) — renders ONLY when unit.stunned === true */}
+          {(['light', 'dark'] as const).map((faction) => {
+            const unit = state.units[faction];
+            if (!unit.stunned) return null;
+            const stunUrl = getAssetUrl(pack, 'combat-status-stun-v1');
+            if (!stunUrl) return null;
+            const side: 'left' | 'right' = faction === 'light' ? 'left' : 'right';
+            return (
+              <div
+                key={`stun-${faction}`}
+                className={`vfx-overlay vfx-overlay--${side} vfx-overlay--stun`}
+                id={`vfx-stun-${faction}`}
+                aria-label={`${unit.name} is stunned`}
+              >
+                <img src={stunUrl} alt="Stunned" className="vfx-overlay-img vfx-stun-img" />
+              </div>
+            );
+          })}
+
           {/* Attack button — ui-button-hover-v1 applied as hover bg via inline style var */}
           <div className="battle-controls" id="battle-controls"
             style={{
@@ -217,18 +235,40 @@ export function CombatScene({ pack, initialOverrides }: Props) {
             ))}
           </div>
 
-          {/* Spell action strip — external assets: spell-heal-icon-v1, spell-imprison-icon-v1
-              Always shown during battle when assets are present. No log-text dependency. */}
+          {/* Spell tray (0.6) — interactive during battle phase */}
           {state.phase === 'battle' && (() => {
-            const healUrl = getAssetUrl(pack, 'spell-heal-icon-v1');
-            const impUrl  = getAssetUrl(pack, 'spell-imprison-icon-v1');
-            const hasMagicBar = !!(healUrl || impUrl);
-            return hasMagicBar ? (
-              <div className="spell-action-strip" id="spell-action-strip" aria-label="Available spell icons">
-                {healUrl && <img src={healUrl} alt="Heal" className="spell-action-icon" title="spell-heal-icon-v1" />}
-                {impUrl  && <img src={impUrl}  alt="Imprison" className="spell-action-icon" title="spell-imprison-icon-v1" />}
+            const healUrl   = getAssetUrl(pack, 'spell-heal-icon-v1');
+            const imprisonUrl = getAssetUrl(pack, 'spell-imprison-icon-v1');
+            if (!healUrl && !imprisonUrl) return null;
+            return (
+              <div className="spell-action-strip" id="spell-action-strip" aria-label="Spell tray">
+                {/* Heal — disabled stub in 0.6. Mechanic not yet implemented. */}
+                {healUrl && (
+                  <button
+                    id="btn-spell-heal"
+                    className="spell-action-btn spell-action-btn--disabled"
+                    disabled
+                    title="Heal (not yet implemented)"
+                    aria-label="Heal spell — not yet implemented"
+                  >
+                    <img src={healUrl} alt="Heal" className="spell-action-icon" />
+                  </button>
+                )}
+                {/* Imprison — active in 0.6 */}
+                {imprisonUrl && (
+                  <button
+                    id="btn-spell-imprison"
+                    className="spell-action-btn"
+                    onClick={() => handleCastSpell('imprison')}
+                    disabled={animating}
+                    title={`Cast Imprison on ${state.turnFaction === 'light' ? 'Sorceress' : 'Knight'}`}
+                    aria-label="Cast Imprison"
+                  >
+                    <img src={imprisonUrl} alt="Imprison" className="spell-action-icon" />
+                  </button>
+                )}
               </div>
-            ) : null;
+            );
           })()}
         </div>
       )}

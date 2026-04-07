@@ -1,5 +1,10 @@
 import type { CombatState, Faction, UnitState } from '../../lib/types';
 
+// ─── Spell Type ───────────────────────────────────────────────────────────────
+
+/** Only one active spell in 0.6. */
+export type SpellId = 'imprison';
+
 // ─── Initial State Factory ────────────────────────────────────────────────────
 
 export interface CombatInitOverrides {
@@ -67,6 +72,24 @@ export function processAttack(state: CombatState): CombatState {
   const attFaction  = state.turnFaction;
   const defFaction: Faction = attFaction === 'light' ? 'dark' : 'light';
   const attacker = state.units[attFaction];
+
+  // ─── Stun skip (0.6) ─────────────────────────────────────────────────────
+  if (attacker.stunned) {
+    const clearedAttacker = { ...attacker, stunned: false };
+    const stunLog = [
+      `${attacker.name} is stunned and cannot attack!`,
+      ...state.log,
+    ].slice(0, 20);
+    return {
+      ...state,
+      units: { ...state.units, [attFaction]: clearedAttacker },
+      lastEvent: 'none',
+      lastEventFaction: null,
+      turnFaction: defFaction,
+      turnNumber: state.turnNumber + (defFaction === 'light' ? 1 : 0),
+      log: stunLog,
+    };
+  }
   const defender = { ...state.units[defFaction] };
 
   const dmg = rollDamage(attFaction);
@@ -101,4 +124,40 @@ export function startBattle(state: CombatState): CombatState {
 
 export function resetBattle(): CombatState {
   return makeInitialState();
+}
+
+// ─── Spell Processing (0.6) ──────────────────────────────────────────────────
+
+/**
+ * processSpell — pure transition, no mutation.
+ * 0.6 supports only 'imprison':
+ *   - sets imprisoned = true on the DEFENDER
+ *   - sets stunned = true on the DEFENDER (real combat effect)
+ *   - logs the canonical imprison message
+ *   - turn does NOT advance (casting is free-action in 0.6)
+ */
+export function processSpell(
+  state: CombatState,
+  _spell: SpellId,   // only 'imprison' in 0.6
+): CombatState {
+  if (state.phase !== 'battle') return state;
+
+  const casterFaction  = state.turnFaction;
+  const targetFaction: Faction = casterFaction === 'light' ? 'dark' : 'light';
+
+  const caster = state.units[casterFaction];
+  const target = { ...state.units[targetFaction], imprisoned: true, stunned: true };
+
+  // Canonical log string — do not alter wording.
+  const logEntry = `${caster.name} casts Imprison on ${target.name}!`;
+
+  const newLog = [logEntry, ...state.log].slice(0, 20);
+
+  return {
+    ...state,
+    units: { ...state.units, [targetFaction]: target },
+    lastEvent: 'none',
+    lastEventFaction: null,
+    log: newLog,
+  };
 }
