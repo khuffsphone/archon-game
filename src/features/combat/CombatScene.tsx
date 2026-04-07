@@ -16,8 +16,7 @@ export function CombatScene({ pack, initialOverrides }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
-  // External: stun status shown on the ATTACKER's side during animation
-  const [stunOverlay, setStunOverlay] = useState<'left' | 'right' | null>(null);
+  // NOTE: combat-status-stun-v1 deferred — no stun mechanic exists in CombatEngine yet.
 
   const {
     state,
@@ -44,14 +43,6 @@ export function CombatScene({ pack, initialOverrides }: Props) {
 
     setVfxOverlay({ id: vfxId, side: defenderSide });
     const t = setTimeout(() => setVfxOverlay(null), 700);
-
-    // External: stun status briefly shown on the ATTACKER for non-death hits
-    if (state.lastEvent !== 'death') {
-      const attackerSide: 'left' | 'right' = defenderFaction === 'light' ? 'right' : 'left';
-      setStunOverlay(attackerSide);
-      setTimeout(() => setStunOverlay(null), 500);
-    }
-
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.turnNumber, state.lastEvent]);
@@ -176,19 +167,6 @@ export function CombatScene({ pack, initialOverrides }: Props) {
               </div>
             ) : null;
           })()}
-          {/* Stun status overlay — attacker side, external asset combat-status-stun-v1 */}
-          {stunOverlay && (() => {
-            const stunUrl = getAssetUrl(pack, 'combat-status-stun-v1');
-            return stunUrl ? (
-              <div
-                className={`vfx-overlay vfx-overlay--${stunOverlay} vfx-overlay--stun`}
-                id={`vfx-stun-${stunOverlay}`}
-                aria-hidden="true"
-              >
-                <img src={stunUrl} alt="" className="vfx-overlay-img vfx-stun-img" />
-              </div>
-            ) : null;
-          })()}
 
           {/* Attack button — ui-button-hover-v1 applied as hover bg via inline style var */}
           <div className="battle-controls" id="battle-controls"
@@ -232,21 +210,26 @@ export function CombatScene({ pack, initialOverrides }: Props) {
             )}
           </div>
 
-          {/* Combat log — spell icons prefix relevant entries */}
+          {/* Combat log */}
           <div className="combat-log" id="combat-log">
-            {state.log.map((entry, i) => {
-              const healUrl  = entry.toLowerCase().includes('heal') ? getAssetUrl(pack, 'spell-heal-icon-v1') : null;
-              const impUrl   = entry.toLowerCase().includes('imprison') || entry.toLowerCase().includes('stun')
-                               ? getAssetUrl(pack, 'spell-imprison-icon-v1') : null;
-              const iconUrl  = healUrl || impUrl;
-              return (
-                <div key={i} className="log-entry">
-                  {iconUrl && <img src={iconUrl} alt="" className="log-icon" aria-hidden="true" />}
-                  {entry}
-                </div>
-              );
-            })}
+            {state.log.map((entry, i) => (
+              <div key={i} className="log-entry">{entry}</div>
+            ))}
           </div>
+
+          {/* Spell action strip — external assets: spell-heal-icon-v1, spell-imprison-icon-v1
+              Always shown during battle when assets are present. No log-text dependency. */}
+          {state.phase === 'battle' && (() => {
+            const healUrl = getAssetUrl(pack, 'spell-heal-icon-v1');
+            const impUrl  = getAssetUrl(pack, 'spell-imprison-icon-v1');
+            const hasMagicBar = !!(healUrl || impUrl);
+            return hasMagicBar ? (
+              <div className="spell-action-strip" id="spell-action-strip" aria-label="Available spell icons">
+                {healUrl && <img src={healUrl} alt="Heal" className="spell-action-icon" title="spell-heal-icon-v1" />}
+                {impUrl  && <img src={impUrl}  alt="Imprison" className="spell-action-icon" title="spell-imprison-icon-v1" />}
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
     </div>

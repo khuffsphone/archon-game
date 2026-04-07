@@ -67,8 +67,10 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
       }, 600);
     } else {
       playSound('sfx-melee-hit');
-      // External: magic bolt layered on every non-death attack
-      setTimeout(() => playSound('sfx-magic-bolt-v1'), 60);
+      // External: magic bolt plays only on dark (Sorceress) attacks — she is ranged/magic
+      if (state.turnFaction === 'dark') {
+        setTimeout(() => playSound('sfx-magic-bolt-v1'), 60);
+      }
     }
 
     setState(next);
