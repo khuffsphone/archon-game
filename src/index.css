@@ -140,11 +140,32 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   box-shadow: 0 0 20px rgba(220,50,50,0.3); transition: transform 100ms, box-shadow 100ms;
   min-width: 180px;
 }
-.btn-attack:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 0 30px rgba(220,50,50,0.5); }
+.btn-attack:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 30px rgba(220,50,50,0.5);
+  /* External: ui-button-hover-v1 overlay on hover when asset is in pack */
+  background-image: var(--btn-hover-img, none);
+  background-size: cover;
+  background-blend-mode: overlay;
+  background-position: center;
+}
 .btn-attack:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary-sm { background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--text-muted); padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer; }
 
-/* ── Victory Banner ───────────────────────────────────────── */
+/* ── Spell Action Strip (external assets: spell-heal-icon, spell-imprison-icon) ── */
+.spell-action-strip {
+  display: flex; gap: 0.5rem; align-items: center; justify-content: center;
+  padding: 0.3rem 0; margin-top: 0.25rem;
+  opacity: 0.75;
+}
+.spell-action-icon {
+  width: 24px; height: 24px; object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(180,100,255,0.5));
+  transition: opacity 150ms, transform 150ms;
+}
+.spell-action-icon:hover { opacity: 1; transform: scale(1.15); }
+
+
 .victory-banner { text-align: center; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
 .victory-title {
   font-family: 'Cinzel', serif; font-size: 1.8rem; color: var(--accent);

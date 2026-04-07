@@ -60,11 +60,17 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
     if (next.lastEvent === 'death') {
       const sfxId = next.lastEventFaction === 'light' ? 'sfx-death-light' : 'sfx-death-dark';
       playSound(sfxId);
+      // External: heavy melee hit accentuates death events
+      setTimeout(() => playSound('sfx-melee-hit-heavy-v1'), 80);
       setTimeout(() => {
         playSound(next.winner === 'light' ? 'voice-victory' : 'voice-defeat');
       }, 600);
     } else {
       playSound('sfx-melee-hit');
+      // External: magic bolt plays only on dark (Sorceress) attacks — she is ranged/magic
+      if (state.turnFaction === 'dark') {
+        setTimeout(() => playSound('sfx-magic-bolt-v1'), 60);
+      }
     }
 
     setState(next);
@@ -79,6 +85,9 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
   const handleTurnVoice = useCallback(() => {
     const id = state.turnFaction === 'light' ? 'voice-light-turn' : 'voice-dark-turn';
     playSound(id);
+    // External: faction-specific teleport SFX accompanies turn announcement
+    const teleportId = state.turnFaction === 'light' ? 'sfx-teleport-light-v1' : 'sfx-teleport-dark-v1';
+    setTimeout(() => playSound(teleportId), 120);
   }, [state.turnFaction, playSound]);
 
   return {

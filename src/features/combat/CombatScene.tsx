@@ -16,6 +16,7 @@ export function CombatScene({ pack, initialOverrides }: Props) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [vfxOverlay, setVfxOverlay] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const [spawnVfx, setSpawnVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
+  // NOTE: combat-status-stun-v1 deferred — no stun mechanic exists in CombatEngine yet.
 
   const {
     state,
@@ -167,8 +168,15 @@ export function CombatScene({ pack, initialOverrides }: Props) {
             ) : null;
           })()}
 
-          {/* Controls */}
-          <div className="battle-controls" id="battle-controls">
+          {/* Attack button — ui-button-hover-v1 applied as hover bg via inline style var */}
+          <div className="battle-controls" id="battle-controls"
+            style={{
+              '--btn-hover-img': (() => {
+                const u = getAssetUrl(pack, 'ui-button-hover-v1');
+                return u ? `url(${u})` : 'none';
+              })(),
+            } as React.CSSProperties}
+          >
             {state.phase === 'battle' && (
               <>
                 <button
@@ -208,6 +216,20 @@ export function CombatScene({ pack, initialOverrides }: Props) {
               <div key={i} className="log-entry">{entry}</div>
             ))}
           </div>
+
+          {/* Spell action strip — external assets: spell-heal-icon-v1, spell-imprison-icon-v1
+              Always shown during battle when assets are present. No log-text dependency. */}
+          {state.phase === 'battle' && (() => {
+            const healUrl = getAssetUrl(pack, 'spell-heal-icon-v1');
+            const impUrl  = getAssetUrl(pack, 'spell-imprison-icon-v1');
+            const hasMagicBar = !!(healUrl || impUrl);
+            return hasMagicBar ? (
+              <div className="spell-action-strip" id="spell-action-strip" aria-label="Available spell icons">
+                {healUrl && <img src={healUrl} alt="Heal" className="spell-action-icon" title="spell-heal-icon-v1" />}
+                {impUrl  && <img src={impUrl}  alt="Imprison" className="spell-action-icon" title="spell-imprison-icon-v1" />}
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
     </div>
