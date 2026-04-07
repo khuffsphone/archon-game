@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CombatState, CombatPackManifest } from '../../lib/types';
-import { makeInitialState, processAttack, startBattle, resetBattle } from './CombatEngine';
-import type { CombatInitOverrides } from './CombatEngine';
+import { makeInitialState, processAttack, processSpell, startBattle, resetBattle } from './CombatEngine';
+import type { CombatInitOverrides, SpellId } from './CombatEngine';
 import { getAssetUrl } from '../../lib/packLoader';
 
 interface UseCombatOptions {
@@ -48,6 +48,10 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
   const handleStartBattle = useCallback(() => {
     setState(s => startBattle(s));
     playSound('voice-battle');
+    // External: teleport SFX fires at battle entry — both factions enter the arena.
+    // Deliberately NOT tied to turn changes (see 0.6 scope correction).
+    setTimeout(() => playSound('sfx-teleport-light-v1'), 150);
+    setTimeout(() => playSound('sfx-teleport-dark-v1'), 400);
   }, [playSound]);
 
   const handleAttack = useCallback(() => {
@@ -85,10 +89,14 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
   const handleTurnVoice = useCallback(() => {
     const id = state.turnFaction === 'light' ? 'voice-light-turn' : 'voice-dark-turn';
     playSound(id);
-    // External: faction-specific teleport SFX accompanies turn announcement
-    const teleportId = state.turnFaction === 'light' ? 'sfx-teleport-light-v1' : 'sfx-teleport-dark-v1';
-    setTimeout(() => playSound(teleportId), 120);
+    // Teleport SFX removed from turn voice — now fires at battle entry only.
   }, [state.turnFaction, playSound]);
+
+  /** 0.6: Cast imprison on the opposing unit. */
+  const handleCastSpell = useCallback((spell: SpellId) => {
+    if (state.phase !== 'battle' || animating) return;
+    setState(s => processSpell(s, spell));
+  }, [state.phase, animating]);
 
   return {
     state,
@@ -97,5 +105,6 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
     handleAttack,
     handleReset,
     handleTurnVoice,
+    handleCastSpell,
   };
 }
