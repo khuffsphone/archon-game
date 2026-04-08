@@ -1,106 +1,80 @@
-# Implementation Plan — board-combat-alpha-0.7
+# Implementation Plan — board-combat-alpha-0.7 (CORRECTED)
 **Branch:** feat/board-imprisonment-effects-0.7
 **Base:** main @ 4c0eb74 (board-combat-alpha-0.6 tag)
-**Date:** 2026-04-08
+**Date:** 2026-04-08 (scope correction applied)
+
+> **SUPERSEDES** previous implementation_plan_0.7.md.
+> The corrected rules below are authoritative.
 
 ---
 
 ## Goal
 
-Apply the `imprisoned` flag (set in combat via Sorceress's Imprison spell) as a real board-layer movement restriction. A imprisoned piece cannot move until the restriction is cleared. Visual status is shown on its board token.
+Make the `imprisoned` flag (set in combat) a real board-layer movement restriction. Imprisoned pieces remain selectable, show zero legal moves, and display a visible badge. board-combat-contract.ts stays frozen.
 
 ---
 
-## Key Design Constraint — Contract is FROZEN
+## Corrected Design Rules
 
-`board-combat-contract.ts` is **frozen since 0.1** and must not be modified.
-
-This means:
-- `BoardPiece` (in the contract) carries NO imprisonment state — it's a combat-payload type
-- Imprisonment is a **board-layer local state** only: stored in `BoardState.pieces` via a **BoardPiece extension** in `boardState.ts`
-- The `CombatResultPayload` does NOT carry imprisonment — it carries HP and survival
-- Imprisonment must be **propagated via the combat result bridge**: when a unit wins combat, we carry its `imprisoned` flag back from `CombatState.units[faction].imprisoned` through the `CombatBridge` to `applyCombatResult`
+1. `board-combat-contract.ts` — **FROZEN, zero changes**
+2. Imprisoned pieces **remain selectable** (clicking them opens the sidebar)
+3. Imprisoned pieces have **exactly zero legal moves** — `computeLegalMoves` returns `[]`
+4. When selected, the sidebar shows: **"Imprisoned — cannot move"** instead of "N moves available"
+5. Imprisoned pieces display the **spell-imprison-icon-v1 badge** on their board token
+6. Imprisonment **persists until death or a future cure mechanic** — no timer, no auto-clear in 0.7
+7. No heal mechanic in 0.7
+8. No cure/clear mechanic in 0.7 — explicitly deferred to 0.8
 
 ---
 
-## Propagation Path
+## Exact Propagation Rules
 
-```
-CombatEngine.processSpell('imprison')
-  → CombatState.units[dark].imprisoned = true
-  → CombatState.units[dark].stunned = true
+| Scenario | Board result |
+|----------|-------------|
+| Imprisoned unit **dies** in combat | `isDead = true` — no `imprisoned` applied (unit is gone) |
+| Imprisoned unit **survives** combat and returns to board | `imprisoned = true` applied to the surviving board piece |
+| Non-imprisoned unit **survives** | `imprisoned` remains undefined/false — not added |
 
-Combat ends (any outcome)
-  → CombatBridge.handleResult()
-  → CombatResultPayload.survivingAttacker / survivingDefender (contract, no imprisoned field)
-  → NEW: CombatBridge must pass imprisoned flags separately via an EXTENDED result type
-  → applyCombatResult sets boardPiece.imprisoned = true
-```
+---
 
-**Precise approach:** Extend `CombatResultPayload` locally (not in the contract file) via an extended interface in `CombatBridge.tsx`:
+## Architecture — Contract-Safe Approach
+
+### Local BoardPieceState Extension (boardState.ts only)
 
 ```typescript
-// Local extension — NOT in board-combat-contract.ts
-interface ExtendedCombatResult extends CombatResultPayload {
+// boardState.ts — local extension, NOT in board-combat-contract.ts
+export interface BoardPieceExtension {
+  imprisoned?: boolean;
+}
+// All board.pieces entries use: BoardPiece & BoardPieceExtension
+```
+
+`BoardState.pieces` is typed `Record<string, BoardPiece>` in the frozen contract.
+The local board layer casts to `Record<string, BoardPiece & BoardPieceExtension>` where needed.
+TypeScript widening: safe — BoardPiece & BoardPieceExtension is a superset of BoardPiece.
+
+### ExtendedCombatResultPayload (CombatBridge.tsx only)
+
+```typescript
+// CombatBridge.tsx — local, NOT in board-combat-contract.ts
+interface ExtendedCombatResultPayload extends CombatResultPayload {
   survivingAttackerImprisoned?: boolean;
   survivingDefenderImprisoned?: boolean;
 }
 ```
 
-This avoids touching the frozen contract while still propagating the flag.
+CombatBridge reads imprisonment from `CombatState` via a DOM data-attribute set by
+CombatScene on the combat-scene root div:
+- `data-attacker-imprisoned="true|false"`
+- `data-defender-imprisoned="true|false"`
 
----
+CombatScene already has access to `state.units[faction].imprisoned`.
 
-## BoardPiece Extension (board-layer only)
+### applyCombatResult (boardState.ts)
 
-`boardState.ts` already imports `BoardPiece` from the contract. We extend it **locally** in boardState.ts:
-
-```typescript
-// boardState.ts — local extension, NOT in contract
-export interface BoardPieceState extends BoardPiece {
-  /** 0.7: board-layer imprisonment. Movement blocked until cleared. */
-  imprisoned?: boolean;
-}
-
-// Change: pieces Record uses BoardPieceState instead of BoardPiece
-export interface LocalBoardState extends BoardState {
-  pieces: Record<string, BoardPieceState>;
-}
-```
-
-Since `BoardState` in the contract types `pieces` as `Record<string, BoardPiece>`, the local extension is a widening (compatible). All existing boardState functions continue to work — they just gain access to `.imprisoned`.
-
----
-
-## Scope — FROZEN
-
-### IN SCOPE
-
-| Area | Change |
-|------|--------|
-| `src/features/board/boardState.ts` | `BoardPieceState` extension interface; `selectPiece` gates on `imprisoned`; `computeLegalMoves` returns `[]` for imprisoned piece; `applyCombatResult` sets `imprisoned` from extended result |
-| `src/features/combat/CombatBridge.tsx` | `ExtendedCombatResult` local interface; passes `imprisoned` flags from `CombatState` into extended result on `handleResult` |
-| `src/features/board/BoardScene.tsx` (token render) | Show `spell-imprison-icon-v1` badge on imprisoned piece token |
-
-### OUT OF SCOPE — HARD STOPS
-
-| Item |
-|------|
-| Changes to `board-combat-contract.ts` |
-| Heal mechanic |
-| Full spell system |
-| AI changes |
-| New external assets |
-| Clear/cure mechanic for imprisonment (deferred to 0.8) |
-
----
-
-## Imprisonment Clear Rule (0.7)
-
-Imprisonment does NOT clear automatically during the skipped turn (stun handles the skip in combat). On the board layer in 0.7:
-- Imprisonment persists indefinitely until the piece dies or a future cure mechanic is added
-- No clear/cure mechanic in 0.7 — that is an explicit 0.8 deferred item
-- This is intentional and documented, not an omission
+`applyCombatResult` signature stays compatible with `CombatResultPayload` (contract type).
+BoardScene passes an `ExtendedCombatResultPayload` — since it extends the contract type, no type error.
+Inside `applyCombatResult`, read extended fields via optional chaining.
 
 ---
 
@@ -108,25 +82,35 @@ Imprisonment does NOT clear automatically during the skipped turn (stun handles 
 
 | File | Change |
 |------|--------|
-| `src/features/board/boardState.ts` | `BoardPieceState` interface; gating in `selectPiece` + `computeLegalMoves`; `applyCombatResult` processes extended result |
-| `src/features/combat/CombatBridge.tsx` | `ExtendedCombatResult`; propagate `unit.imprisoned` from CombatState |
-| `src/features/board/BoardScene.tsx` | Imprisoned token badge (spell-imprison-icon-v1) overlay |
+| `src/features/board/boardState.ts` | `BoardPieceExtension` interface; `computeLegalMoves` returns `[]` if imprisoned; `applyCombatResult` applies `imprisoned` from extended result |
+| `src/features/combat/CombatBridge.tsx` | `ExtendedCombatResultPayload`; reads imprisoned flags from CombatScene DOM data-attrs; builds extended result |
+| `src/features/combat/CombatScene.tsx` | Set `data-attacker-imprisoned` / `data-defender-imprisoned` data attributes on `#combat-scene` root div |
+| `src/features/board/BoardScene.tsx` | Pass `imprisoned` to `PieceToken`; show "Imprisoned — cannot move" in sidebar; imprison badge on token |
+| `src/index.css` | `.piece-token--imprisoned` ring style; `.sidebar-imprisoned-status` text style |
+
+---
+
+## NOT Changed
+
+- `src/lib/board-combat-contract.ts` — ZERO changes
+- `src/lib/types.ts` — already has `stunned`/`imprisoned` on UnitState (0.6 work)
+- `src/features/combat/CombatEngine.ts` — no changes needed
+- `src/features/combat/useCombat.ts` — no changes needed
 
 ---
 
 ## Verification Plan
 
-1. `tsc --noEmit` — 0 errors required
-2. Cast imprison in combat → combatant returns to board with `imprisoned = true`
-3. Attempting to select and move the imprisoned piece → no legal moves shown
-4. Imprisoned piece token shows spell-imprison-icon-v1 badge
+1. `tsc --noEmit` — 0 errors
+2. `git diff HEAD -- src/lib/board-combat-contract.ts` — empty (no changes)
+3. Cast imprison in combat → return to board → surviving piece has imprisoned badge
+4. Click imprisoned piece → selected (sidebar opens) → 0 moves available → "Imprisoned — cannot move"
 5. Non-imprisoned pieces move normally
-6. Contract file unchanged (verify via `git diff board-combat-contract.ts` — expect empty)
+6. No legal move dots show for imprisoned piece
 
 ---
 
 ## Rollback
 
-Branch only: `git push origin --delete feat/board-imprisonment-effects-0.7`
-Tag `board-combat-alpha-0.6` at `4c0eb74` is unaffected.
-Frozen contract is unmodified by design.
+Branch: `git push origin --delete feat/board-imprisonment-effects-0.7`
+Tag `board-combat-alpha-0.6` at `4c0eb74` unaffected.
