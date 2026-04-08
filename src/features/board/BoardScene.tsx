@@ -17,6 +17,7 @@ import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
   applyCombatResult, checkBoardAssets, BOARD_SIZE,
 } from './boardState';
+import type { BoardPieceState } from './boardState';
 import { getAssetUrl } from '../../lib/packLoader';
 
 interface Props {
@@ -155,7 +156,11 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
 
                 {/* Piece token */}
                 {piece && !piece.isDead && (
-                  <PieceToken piece={piece} pack={pack} isSelected={isSelected} />
+                  <PieceToken
+                    piece={piece as BoardPieceState}
+                    pack={pack}
+                    isSelected={isSelected}
+                  />
                 )}
                 {piece && piece.isDead && (
                   <DefeatedToken piece={piece} pack={pack} />
@@ -187,7 +192,13 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                   <div className="sidebar-name">{p.name}</div>
                   <div className="sidebar-role">{p.role}</div>
                   <div className="sidebar-hp">{p.hp} / {p.maxHp} HP</div>
-                  <div className="sidebar-moves">{board.legalMoves.length} moves available</div>
+                  {(p as BoardPieceState).imprisoned ? (
+                    <div className="sidebar-imprisoned-status" id="sidebar-imprisoned-status">
+                      🔒 Imprisoned — cannot move
+                    </div>
+                  ) : (
+                    <div className="sidebar-moves">{board.legalMoves.length} moves available</div>
+                  )}
                 </div>
               </div>
             );
@@ -201,26 +212,38 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface TokenProps {
-  piece: import('../../lib/board-combat-contract').BoardPiece;
+  piece: BoardPieceState;
   pack: CombatPackManifest;
   isSelected?: boolean;
 }
 
 function PieceToken({ piece, pack, isSelected }: TokenProps) {
   const tokenUrl = getAssetUrl(pack, piece.assetIds.token);
+  const imprisonBadgeUrl = piece.imprisoned ? getAssetUrl(pack, 'spell-imprison-icon-v1') : null;
   return (
     <div
       className={[
         'piece-token',
         `piece-token--${piece.faction}`,
         isSelected ? 'piece-token--selected' : '',
+        piece.imprisoned ? 'piece-token--imprisoned' : '',
       ].filter(Boolean).join(' ')}
-      title={`${piece.name} (${piece.faction}) — ${piece.hp}/${piece.maxHp} HP`}
+      title={piece.imprisoned
+        ? `${piece.name} (${piece.faction}) — IMPRISONED — ${piece.hp}/${piece.maxHp} HP`
+        : `${piece.name} (${piece.faction}) — ${piece.hp}/${piece.maxHp} HP`}
     >
       {tokenUrl
         ? <img src={tokenUrl} alt={piece.name} className="piece-token-img" />
         : <span className="piece-token-fallback">{piece.faction === 'light' ? '☀' : '🌑'}</span>
       }
+      {/* Imprisoned badge (0.7) — only when unit.imprisoned === true */}
+      {piece.imprisoned && (
+        <div className="imprisoned-badge" id={`imprisoned-badge-${piece.pieceId}`} aria-label="Imprisoned">
+          {imprisonBadgeUrl
+            ? <img src={imprisonBadgeUrl} alt="Imprisoned" className="imprisoned-badge-img" />
+            : <span className="imprisoned-badge-fallback">🔒</span>}
+        </div>
+      )}
       <div className="piece-hp-bar">
         <div
           className="piece-hp-fill"

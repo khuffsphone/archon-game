@@ -347,6 +347,27 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .piece-hp-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(0,0,0,0.5); }
 .piece-hp-fill { height: 100%; background: var(--success); transition: width 0.3s ease; }
 
+/* Imprisoned token (0.7) */
+.piece-token--imprisoned {
+  border-color: hsl(45,90%,55%) !important;
+  box-shadow: 0 0 10px hsla(45,90%,55%,0.6), 0 0 0 2px hsla(45,90%,55%,0.25);
+  animation: imprisoned-pulse 2s ease-in-out infinite;
+}
+@keyframes imprisoned-pulse {
+  0%, 100% { box-shadow: 0 0 10px hsla(45,90%,55%,0.6), 0 0 0 2px hsla(45,90%,55%,0.25); }
+  50%       { box-shadow: 0 0 18px hsla(45,90%,55%,0.9), 0 0 0 3px hsla(45,90%,55%,0.45); }
+}
+.imprisoned-badge {
+  position: absolute; top: -4px; right: -4px;
+  width: 18px; height: 18px;
+  background: hsl(45,90%,55%); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10; font-size: 10px; line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.imprisoned-badge-img { width: 14px; height: 14px; object-fit: contain; }
+.imprisoned-badge-fallback { font-size: 10px; }
+
 /* Sidebar */
 .board-sidebar { position: fixed; right: 0; top: 49px; bottom: 0; width: 180px; background: var(--surface); border-left: 1px solid var(--border); padding: 12px; z-index: 50; overflow-y: auto; }
 .sidebar-piece-card { display: flex; flex-direction: column; gap: 10px; align-items: center; }
@@ -356,6 +377,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .sidebar-role  { font-size: 11px; color: var(--text-muted); text-transform: capitalize; margin-bottom: 6px; }
 .sidebar-hp    { font-size: 12px; color: var(--success); }
 .sidebar-moves { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.sidebar-imprisoned-status {
+  font-size: 11px; font-weight: 700; color: hsl(45,90%,55%);
+  margin-top: 4px; letter-spacing: 0.02em;
+  border: 1px solid hsla(45,90%,55%,0.35);
+  border-radius: 4px; padding: 3px 6px; background: hsla(45,90%,55%,0.08);
+}
 
 /* Combat bridge wrapper */
 .combat-bridge-wrapper { position: relative; width: 100%; height: 100vh; display: flex; flex-direction: column; }

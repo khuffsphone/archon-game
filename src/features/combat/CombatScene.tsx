@@ -65,6 +65,8 @@ export function CombatScene({ pack, initialOverrides }: Props) {
       className="combat-scene"
       style={{ '--arena-bg': arenaUrl ? `url(${arenaUrl})` : 'none' } as React.CSSProperties}
       id="combat-scene"
+      data-light-imprisoned={String(!!state.units.light.imprisoned)}
+      data-dark-imprisoned={String(!!state.units.dark.imprisoned)}
     >
       {/* Arena background */}
       <div className="arena-bg" id="arena-bg" />

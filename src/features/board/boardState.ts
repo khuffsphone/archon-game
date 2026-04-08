@@ -5,7 +5,7 @@
  */
 import type {
   BoardState, BoardSquare, BoardCoord, BoardPiece,
-  Faction, SquareLuminance, PieceRole,
+  Faction, SquareLuminance, PieceRole, CombatResultPayload,
 } from '../../lib/board-combat-contract';
 import type { CombatPackManifest } from '../../lib/types';
 
@@ -79,8 +79,31 @@ export const ALPHA_ROSTER: RosterEntry[] = [
   },
 ];
 
-// ─── Board Size ────────────────────────────────────────────────────────────────
+// ─── Board Size ───────────────────────────────────────────────────────────────
 export const BOARD_SIZE = 9;
+
+// ─── Board-layer Piece Extension (0.7) ───────────────────────────────────────────────
+/**
+ * Local extension to BoardPiece — NOT in board-combat-contract.ts (frozen).
+ * Board-layer only. Widens BoardPiece without modifying the contract.
+ */
+export interface BoardPieceExtension {
+  /** 0.7: piece cannot move while imprisoned. Selectable but 0 legal moves. */
+  imprisoned?: boolean;
+}
+
+/** Convenience alias for board pieces that carry the local 0.7 extension. */
+export type BoardPieceState = BoardPiece & BoardPieceExtension;
+
+/**
+ * Extended combat result payload — local to board layer only.
+ * Carries imprisonment flags that the frozen CombatResultPayload cannot hold.
+ * Safe: ExtendedCombatResultPayload extends CombatResultPayload (additive only).
+ */
+export interface ExtendedCombatResultPayload extends CombatResultPayload {
+  survivingAttackerImprisoned?: boolean;
+  survivingDefenderImprisoned?: boolean;
+}
 
 // ─── Initialization ───────────────────────────────────────────────────────────
 
@@ -387,7 +410,10 @@ export function deselectPiece(state: BoardState): BoardState {
 }
 
 /** Simple alpha move rules: orthogonal + diagonal, 1–2 squares, no friendly overlap */
-function computeLegalMoves(state: BoardState, piece: BoardPiece): BoardCoord[] {
+function computeLegalMoves(state: BoardState, piece: BoardPieceState): BoardCoord[] {
+  // 0.7: imprisoned pieces have zero legal moves (still selectable, sidebar explains)
+  if (piece.imprisoned) return [];
+
   const moves: BoardCoord[] = [];
   const range = piece.role === 'herald' ? 3 : 2;
   const { row, col } = piece.coord;
@@ -500,13 +526,15 @@ function recalcLuminance(
 
 // ─── Combat Result Application ─────────────────────────────────────────────────
 
-import type { CombatResultPayload } from '../../lib/board-combat-contract';
 
 export function applyCombatResult(
   state: BoardState,
   result: CombatResultPayload,
 ): BoardState {
-  let newPieces = { ...state.pieces };
+  // result may be an ExtendedCombatResultPayload (local superset) — read extension fields safely
+  const ext = result as ExtendedCombatResultPayload;
+
+  let newPieces = { ...state.pieces } as Record<string, BoardPieceState>;
   const newSquares = state.squares.map(row => row.map(sq => ({ ...sq })));
   const { row, col } = result.contestedSquare;
 
@@ -517,10 +545,15 @@ export function applyCombatResult(
       const oldCoord = newPieces[att.pieceId]?.coord;
       if (oldCoord) newSquares[oldCoord.row][oldCoord.col].pieceId = null;
       newSquares[row][col].pieceId = att.pieceId;
-      newPieces[att.pieceId] = { ...att, coord: { row, col } };
+      // Apply imprisoned flag only to surviving attacker if marked
+      newPieces[att.pieceId] = {
+        ...att,
+        coord: { row, col },
+        ...(ext.survivingAttackerImprisoned ? { imprisoned: true } : {}),
+      };
     }
     if (result.survivingDefender === null) {
-      // Mark defender dead
+      // Mark defender dead — no imprisoned applied (unit is gone)
       const deadDefId = Object.keys(newPieces).find(id => {
         const p = newPieces[id];
         return p.coord.row === row && p.coord.col === col && p.faction !== result.survivingAttacker?.faction;
@@ -528,13 +561,20 @@ export function applyCombatResult(
       if (deadDefId) newPieces[deadDefId] = { ...newPieces[deadDefId], isDead: true, hp: 0 };
     }
   } else if (result.outcome === 'defender_wins') {
-    // Attacker repelled — attacker stays put (doesn't advance)
+    // Attacker repelled — apply imprisoned to surviving defender if marked
     if (result.survivingAttacker === null) {
       const deadAttId = state.selectedPieceId ?? Object.keys(newPieces).find(id => {
         const p = newPieces[id];
         return p.faction === state.turnFaction && !p.isDead;
       });
       if (deadAttId) newPieces[deadAttId] = { ...newPieces[deadAttId], isDead: true, hp: 0 };
+    }
+    // Surviving defender: apply imprisoned if marked
+    if (result.survivingDefender !== null) {
+      const def = result.survivingDefender;
+      if (ext.survivingDefenderImprisoned) {
+        newPieces[def.pieceId] = { ...newPieces[def.pieceId], imprisoned: true };
+      }
     }
   }
 

@@ -21,6 +21,7 @@ import type {
   CombatResultPayload,
   CombatBridgeCallbacks,
 } from '../../lib/board-combat-contract';
+import type { ExtendedCombatResultPayload } from '../board/boardState';
 
 // ─── Standalone mode (preserves current baseline) ─────────────────────────────
 
@@ -104,7 +105,22 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
           if (!hasReported.current) {
             hasReported.current = true;
 
-            const combatResult: CombatResultPayload = {
+            // Read imprisoned flags from CombatScene DOM data attributes.
+            // These are set by CombatScene on #combat-scene per-faction.
+            const sceneEl = document.getElementById('combat-scene');
+            const lightImprisoned = sceneEl?.dataset.lightImprisoned === 'true';
+            const darkImprisoned  = sceneEl?.dataset.darkImprisoned  === 'true';
+
+            // Map faction -> attacker/defender flags for surviving pieces only.
+            const attackerIsLight = attacker.faction === 'light';
+            const survivingAttImprisoned = result.winner === attacker.faction
+              ? (attackerIsLight ? lightImprisoned : darkImprisoned)
+              : false; // attacker died — no flag applied
+            const survivingDefImprisoned = result.winner === defender.faction
+              ? (attackerIsLight ? darkImprisoned : lightImprisoned)
+              : false; // defender died — no flag applied
+
+            const combatResult: ExtendedCombatResultPayload = {
               contestedSquare: payload.contestedSquare,
               outcome: result.winner === attacker.faction ? 'attacker_wins' : 'defender_wins',
               survivingAttacker: result.winner === attacker.faction
@@ -114,6 +130,8 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
                 ? { ...defender, hp: result.remainingHp }
                 : null,
               vfxHint: result.winner === 'light' ? 'death_dark' : 'death_light',
+              survivingAttackerImprisoned: survivingAttImprisoned || undefined,
+              survivingDefenderImprisoned: survivingDefImprisoned || undefined,
             };
             callbacks.onResult(combatResult);
           }
