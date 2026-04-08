@@ -574,6 +574,11 @@ export function applyCombatResult(
   const newSquares = state.squares.map(row => row.map(sq => ({ ...sq })));
   const { row, col } = result.contestedSquare;
 
+  // 0.8: tick imprisonment counters for the attacker faction BEFORE applying new flags.
+  // This ensures combat turns count toward the countdown, and newly-imprisoned pieces
+  // start at IMPRISONMENT_TURNS (not IMPRISONMENT_TURNS - 1).
+  newPieces = tickImprisonmentCounters(newPieces, state.turnFaction);
+
   if (result.outcome === 'attacker_wins') {
     // Defender eliminated — move attacker to contested square
     if (result.survivingDefender === null && result.survivingAttacker !== null) {
@@ -619,6 +624,7 @@ export function applyCombatResult(
       }
     }
   }
+
 
   const nextFaction: Faction = state.turnFaction === 'light' ? 'dark' : 'light';
   const nextTurn = nextFaction === 'light' ? state.turnNumber + 1 : state.turnNumber;
