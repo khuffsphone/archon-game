@@ -15,7 +15,7 @@ import type {
 } from '../../lib/board-combat-contract';
 import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
-  applyCombatResult, checkBoardAssets, BOARD_SIZE,
+  applyCombatResult, checkBoardAssets, BOARD_SIZE, IMPRISONMENT_TURNS,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
 import { getAssetUrl } from '../../lib/packLoader';
@@ -194,7 +194,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                   <div className="sidebar-hp">{p.hp} / {p.maxHp} HP</div>
                   {(p as BoardPieceState).imprisoned ? (
                     <div className="sidebar-imprisoned-status" id="sidebar-imprisoned-status">
-                      🔒 Imprisoned — cannot move
+                      🔒 Imprisoned — {(p as BoardPieceState).imprisonedTurnsRemaining ?? IMPRISONMENT_TURNS} turn(s) remaining
                     </div>
                   ) : (
                     <div className="sidebar-moves">{board.legalMoves.length} moves available</div>

@@ -90,7 +90,12 @@ export const BOARD_SIZE = 9;
 export interface BoardPieceExtension {
   /** 0.7: piece cannot move while imprisoned. Selectable but 0 legal moves. */
   imprisoned?: boolean;
+  /** 0.8: turns remaining before imprisonment clears. Counts down on the owning faction's turn. */
+  imprisonedTurnsRemaining?: number;
 }
+
+/** 0.8: Number of owning-faction turns before imprisonment auto-clears. */
+export const IMPRISONMENT_TURNS = 2;
 
 /** Convenience alias for board pieces that carry the local 0.7 extension. */
 export type BoardPieceState = BoardPiece & BoardPieceExtension;
@@ -471,13 +476,16 @@ export function executeMove(state: BoardState, targetCoord: BoardCoord): MoveRes
 
   const updatedLuminance = recalcLuminance(newSquares, state.pieces, attacker.pieceId, targetCoord);
 
-  const newPieces = {
-    ...state.pieces,
-    [attacker.pieceId]: { ...attacker, coord: targetCoord },
+  const piecesAfterMove: Record<string, BoardPieceState> = {
+    ...(state.pieces as Record<string, BoardPieceState>),
+    [attacker.pieceId]: { ...(attacker as BoardPieceState), coord: targetCoord },
   };
 
   const nextFaction: Faction = state.turnFaction === 'light' ? 'dark' : 'light';
   const nextTurn = nextFaction === 'light' ? state.turnNumber + 1 : state.turnNumber;
+
+  // 0.8: tick imprisonment counters for the faction that just moved
+  const newPieces = tickImprisonmentCounters(piecesAfterMove, state.turnFaction);
 
   return {
     type: 'move',
@@ -492,6 +500,34 @@ export function executeMove(state: BoardState, targetCoord: BoardCoord): MoveRes
       turnNumber: nextTurn,
     },
   };
+}
+
+/**
+ * 0.8: Decrement imprisonment counters for all imprisoned pieces belonging to
+ * `justMovedFaction`. Clears imprisonment when the counter reaches zero.
+ */
+function tickImprisonmentCounters(
+  pieces: Record<string, BoardPieceState>,
+  justMovedFaction: Faction,
+): Record<string, BoardPieceState> {
+  let changed = false;
+  const result: Record<string, BoardPieceState> = {};
+  for (const [id, piece] of Object.entries(pieces)) {
+    if (piece.imprisoned && piece.faction === justMovedFaction) {
+      const current = piece.imprisonedTurnsRemaining ?? IMPRISONMENT_TURNS;
+      const remaining = current - 1;
+      changed = true;
+      if (remaining <= 0) {
+        // Imprisonment cleared
+        result[id] = { ...piece, imprisoned: false, imprisonedTurnsRemaining: undefined };
+      } else {
+        result[id] = { ...piece, imprisonedTurnsRemaining: remaining };
+      }
+    } else {
+      result[id] = piece;
+    }
+  }
+  return changed ? result : pieces;
 }
 
 function recalcLuminance(
@@ -549,7 +585,9 @@ export function applyCombatResult(
       newPieces[att.pieceId] = {
         ...att,
         coord: { row, col },
-        ...(ext.survivingAttackerImprisoned ? { imprisoned: true } : {}),
+        ...(ext.survivingAttackerImprisoned
+          ? { imprisoned: true, imprisonedTurnsRemaining: IMPRISONMENT_TURNS }
+          : {}),
       };
     }
     if (result.survivingDefender === null) {
@@ -573,7 +611,11 @@ export function applyCombatResult(
     if (result.survivingDefender !== null) {
       const def = result.survivingDefender;
       if (ext.survivingDefenderImprisoned) {
-        newPieces[def.pieceId] = { ...newPieces[def.pieceId], imprisoned: true };
+        newPieces[def.pieceId] = {
+          ...newPieces[def.pieceId],
+          imprisoned: true,
+          imprisonedTurnsRemaining: IMPRISONMENT_TURNS,
+        };
       }
     }
   }
