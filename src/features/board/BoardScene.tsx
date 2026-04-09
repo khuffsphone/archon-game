@@ -16,6 +16,7 @@ import type {
 import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
   applyCombatResult, checkBoardAssets, BOARD_SIZE, IMPRISONMENT_TURNS,
+  healAlly, getAdjacentImprisonedAllies,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
 import { getAssetUrl } from '../../lib/packLoader';
@@ -185,6 +186,11 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           {(() => {
             const p = board.pieces[board.selectedPieceId!];
             const portraitUrl = getAssetUrl(pack, p.assetIds.portrait);
+            // 0.9: adjacent imprisoned allies the selected piece can heal
+            const healTargets = (!p.isDead && p.faction === board.turnFaction)
+              ? getAdjacentImprisonedAllies(board, board.selectedPieceId!)
+              : [];
+            const canHeal = healTargets.length > 0;
             return (
               <div className="sidebar-piece-card">
                 {portraitUrl && <img src={portraitUrl} alt={p.name} className="sidebar-portrait" />}
@@ -198,6 +204,16 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                     </div>
                   ) : (
                     <div className="sidebar-moves">{board.legalMoves.length} moves available</div>
+                  )}
+                  {canHeal && (
+                    <button
+                      id="btn-heal-ally"
+                      className="sidebar-heal-btn"
+                      onClick={() => setBoard(healAlly(board, board.selectedPieceId!, healTargets[0]))}
+                      title="Heal adjacent imprisoned ally — removes imprisonment immediately"
+                    >
+                      ✨ Heal Ally
+                    </button>
                   )}
                 </div>
               </div>
