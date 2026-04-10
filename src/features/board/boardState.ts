@@ -645,3 +645,90 @@ export function applyCombatResult(
     turnNumber: nextTurn,
   };
 }
+
+// ─── 0.9: Heal Mechanic ────────────────────────────────────────────────────────
+
+/**
+ * Returns the pieceIds of all imprisoned allies adjacent (1 square, 8-directional)
+ * to `casterPieceId` that belong to the same faction.
+ * Returns [] if the caster is not found or has no adjacent imprisoned allies.
+ */
+export function getAdjacentImprisonedAllies(
+  state: BoardState,
+  casterPieceId: string,
+): string[] {
+  const caster = state.pieces[casterPieceId] as BoardPieceState | undefined;
+  if (!caster) return [];
+
+  const { row, col } = caster.coord;
+  const adjacent: string[] = [];
+
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) continue;
+      const neighborId = state.squares[r][c].pieceId;
+      if (!neighborId) continue;
+      const neighbor = state.pieces[neighborId] as BoardPieceState;
+      if (neighbor.faction === caster.faction && neighbor.imprisoned && !neighbor.isDead) {
+        adjacent.push(neighborId);
+      }
+    }
+  }
+  return adjacent;
+}
+
+/**
+ * 0.9: Board-level Heal action.
+ * Clears the `imprisoned` and `imprisonedTurnsRemaining` flags from `targetPieceId`.
+ * Advances the turn to the opposing faction (same as a normal move).
+ * Does NOT restore HP. Does NOT require combat.
+ *
+ * Turn-counter consistency (0.8 rule): healAlly counts as a real board turn.
+ * tickImprisonmentCounters fires for the acting faction BEFORE the cure is applied,
+ * so all OTHER imprisoned allies of the acting faction progress by 1 turn.
+ * The tick on the chosen target (if it would run) is immediately overwritten by
+ * the unconditional cure — the healed piece is always freed regardless of counter.
+ *
+ * Preconditions (caller must verify):
+ *   - state.phase === 'active'
+ *   - caster belongs to state.turnFaction
+ *   - target is an imprisoned ally adjacent to caster
+ */
+export function healAlly(
+  state: BoardState,
+  _casterPieceId: string,
+  targetPieceId: string,
+): BoardState {
+  // Step 1: Tick all faction imprisonment counters (consistent with 0.8 turn rule).
+  // This advances OTHER imprisoned allies' countdowns by 1, same as any other turn.
+  const tickedPieces = tickImprisonmentCounters(
+    state.pieces as Record<string, BoardPieceState>,
+    state.turnFaction,
+  );
+
+  // Step 2: Unconditionally clear the chosen target — overrides the tick result.
+  const newPieces: Record<string, BoardPieceState> = {
+    ...tickedPieces,
+    [targetPieceId]: {
+      ...(tickedPieces[targetPieceId] as BoardPieceState),
+      imprisoned: false,
+      imprisonedTurnsRemaining: undefined,
+    },
+  };
+
+  const nextFaction: Faction = state.turnFaction === 'light' ? 'dark' : 'light';
+  const nextTurn = nextFaction === 'light' ? state.turnNumber + 1 : state.turnNumber;
+
+  return {
+    ...state,
+    phase: 'active',
+    pieces: newPieces,
+    selectedPieceId: null,
+    legalMoves: [],
+    turnFaction: nextFaction,
+    turnNumber: nextTurn,
+  };
+}
