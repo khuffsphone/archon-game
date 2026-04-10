@@ -97,6 +97,9 @@ export interface BoardPieceExtension {
 /** 0.8: Number of owning-faction turns before imprisonment auto-clears. */
 export const IMPRISONMENT_TURNS = 2;
 
+/** 0.10: HP restored per Heal Ally action, capped at target.maxHp. */
+export const HEAL_AMOUNT = 3;
+
 /** Convenience alias for board pieces that carry the local 0.7 extension. */
 export type BoardPieceState = BoardPiece & BoardPieceExtension;
 
@@ -653,6 +656,11 @@ export function applyCombatResult(
  * to `casterPieceId` that belong to the same faction.
  * Returns [] if the caster is not found or has no adjacent imprisoned allies.
  */
+/**
+ * 0.9: Returns the pieceIds of imprisoned allies adjacent (1 square, 8-directional)
+ * to `casterPieceId` that belong to the same faction.
+ * Kept for internal use — prefer getAdjacentHealTargets() in 0.10+ callers.
+ */
 export function getAdjacentImprisonedAllies(
   state: BoardState,
   casterPieceId: string,
@@ -678,6 +686,39 @@ export function getAdjacentImprisonedAllies(
     }
   }
   return adjacent;
+}
+
+/**
+ * 0.10: Returns pieceIds of adjacent allies that are valid Heal targets:
+ * imprisoned OR below maxHp (or both). Same faction, not dead, within 1 square.
+ * Superset of getAdjacentImprisonedAllies.
+ */
+export function getAdjacentHealTargets(
+  state: BoardState,
+  casterPieceId: string,
+): string[] {
+  const caster = state.pieces[casterPieceId] as BoardPieceState | undefined;
+  if (!caster) return [];
+
+  const { row, col } = caster.coord;
+  const targets: string[] = [];
+
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) continue;
+      const neighborId = state.squares[r][c].pieceId;
+      if (!neighborId) continue;
+      const neighbor = state.pieces[neighborId] as BoardPieceState;
+      const needsHeal = neighbor.imprisoned || neighbor.hp < neighbor.maxHp;
+      if (neighbor.faction === caster.faction && needsHeal && !neighbor.isDead) {
+        targets.push(neighborId);
+      }
+    }
+  }
+  return targets;
 }
 
 /**
@@ -710,12 +751,15 @@ export function healAlly(
   );
 
   // Step 2: Unconditionally clear the chosen target — overrides the tick result.
+  // 0.10: also restore HP by HEAL_AMOUNT, capped at maxHp.
+  const tickedTarget = tickedPieces[targetPieceId] as BoardPieceState;
   const newPieces: Record<string, BoardPieceState> = {
     ...tickedPieces,
     [targetPieceId]: {
-      ...(tickedPieces[targetPieceId] as BoardPieceState),
+      ...tickedTarget,
       imprisoned: false,
       imprisonedTurnsRemaining: undefined,
+      hp: Math.min(tickedTarget.hp + HEAL_AMOUNT, tickedTarget.maxHp),
     },
   };
 
