@@ -686,6 +686,12 @@ export function getAdjacentImprisonedAllies(
  * Advances the turn to the opposing faction (same as a normal move).
  * Does NOT restore HP. Does NOT require combat.
  *
+ * Turn-counter consistency (0.8 rule): healAlly counts as a real board turn.
+ * tickImprisonmentCounters fires for the acting faction BEFORE the cure is applied,
+ * so all OTHER imprisoned allies of the acting faction progress by 1 turn.
+ * The tick on the chosen target (if it would run) is immediately overwritten by
+ * the unconditional cure — the healed piece is always freed regardless of counter.
+ *
  * Preconditions (caller must verify):
  *   - state.phase === 'active'
  *   - caster belongs to state.turnFaction
@@ -696,10 +702,18 @@ export function healAlly(
   _casterPieceId: string,
   targetPieceId: string,
 ): BoardState {
-  const newPieces = {
-    ...(state.pieces as Record<string, BoardPieceState>),
+  // Step 1: Tick all faction imprisonment counters (consistent with 0.8 turn rule).
+  // This advances OTHER imprisoned allies' countdowns by 1, same as any other turn.
+  const tickedPieces = tickImprisonmentCounters(
+    state.pieces as Record<string, BoardPieceState>,
+    state.turnFaction,
+  );
+
+  // Step 2: Unconditionally clear the chosen target — overrides the tick result.
+  const newPieces: Record<string, BoardPieceState> = {
+    ...tickedPieces,
     [targetPieceId]: {
-      ...(state.pieces[targetPieceId] as BoardPieceState),
+      ...(tickedPieces[targetPieceId] as BoardPieceState),
       imprisoned: false,
       imprisonedTurnsRemaining: undefined,
     },
