@@ -16,7 +16,7 @@ import type {
 import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
   applyCombatResult, checkBoardAssets, BOARD_SIZE, IMPRISONMENT_TURNS,
-  healAlly, getAdjacentImprisonedAllies,
+  healAlly, getAdjacentHealTargets, HEAL_AMOUNT,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
 import { getAssetUrl } from '../../lib/packLoader';
@@ -186,11 +186,21 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           {(() => {
             const p = board.pieces[board.selectedPieceId!];
             const portraitUrl = getAssetUrl(pack, p.assetIds.portrait);
-            // 0.9: adjacent imprisoned allies the selected piece can heal
+            // 0.10: adjacent allies that are imprisoned OR below maxHp
             const healTargets = (!p.isDead && p.faction === board.turnFaction)
-              ? getAdjacentImprisonedAllies(board, board.selectedPieceId!)
+              ? getAdjacentHealTargets(board, board.selectedPieceId!)
               : [];
             const canHeal = healTargets.length > 0;
+            // Compute label: show whether we're curing imprisonment and/or restoring HP
+            const healTarget = healTargets.length > 0
+              ? board.pieces[healTargets[0]] as BoardPieceState
+              : null;
+            const hpDelta = healTarget && healTarget.hp < healTarget.maxHp
+              ? Math.min(HEAL_AMOUNT, healTarget.maxHp - healTarget.hp)
+              : 0;
+            const healLabel = healTarget?.imprisoned
+              ? hpDelta > 0 ? `✨ Cure + Heal (+${hpDelta} HP)` : '✨ Cure Ally'
+              : hpDelta > 0 ? `✨ Heal Ally (+${hpDelta} HP)` : '✨ Heal Ally';
             return (
               <div className="sidebar-piece-card">
                 {portraitUrl && <img src={portraitUrl} alt={p.name} className="sidebar-portrait" />}
@@ -210,9 +220,9 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                       id="btn-heal-ally"
                       className="sidebar-heal-btn"
                       onClick={() => setBoard(healAlly(board, board.selectedPieceId!, healTargets[0]))}
-                      title="Heal adjacent imprisoned ally — removes imprisonment immediately"
+                      title="Heal adjacent ally — removes imprisonment and restores HP"
                     >
-                      ✨ Heal Ally
+                      {healLabel}
                     </button>
                   )}
                 </div>
