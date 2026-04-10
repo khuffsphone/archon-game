@@ -8,7 +8,7 @@
  * This ensures board state survives mode switches (no reset when switching
  * to the standalone combat mode tab and back).
  */
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import type { CombatPackManifest } from '../../lib/types';
 import type {
   BoardState, BoardCoord, CombatLaunchPayload, CombatBridgeCallbacks,
@@ -36,6 +36,34 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     console.warn('[BoardScene] Missing assets for alpha roster:', assetCheck.missing);
   }
 
+  // ── 1.0: Local board event log ─────────────────────────────────────────────
+  const [boardLog, setBoardLog] = useState<string[]>([]);
+  const appendLog = useCallback((entry: string) => {
+    setBoardLog(prev => [...prev.slice(-99), entry]);
+  }, []);
+
+  // ── 1.0: Cure flash — detect imprisoned→false transitions ──────────────────
+  const [justCuredId, setJustCuredId] = useState<string | null>(null);
+  const prevPiecesRef = useRef<Record<string, BoardPieceState>>({});
+
+  useEffect(() => {
+    const prev = prevPiecesRef.current;
+    for (const [id, piece] of Object.entries(board.pieces as Record<string, BoardPieceState>)) {
+      const wasImprisoned = (prev[id] as BoardPieceState | undefined)?.imprisoned;
+      if (wasImprisoned && !(piece as BoardPieceState).imprisoned) {
+        setJustCuredId(id);
+        appendLog(`✨ ${piece.name} imprisonment cleared`);
+      }
+    }
+    prevPiecesRef.current = board.pieces as Record<string, BoardPieceState>;
+  }, [board.pieces, appendLog]);
+
+  useEffect(() => {
+    if (!justCuredId) return;
+    const t = setTimeout(() => setJustCuredId(null), 900);
+    return () => clearTimeout(t);
+  }, [justCuredId]);
+
   const handleSquareClick = useCallback((coord: BoardCoord) => {
     if (board.phase === 'combat' || board.phase === 'gameover') return;
 
@@ -55,6 +83,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
       if (result.type === 'contest') {
         // Launch combat — board suspends
         setBoard(result.nextState); // phase = 'combat'
+        appendLog(`⚔ ${result.attacker.name} challenges ${result.defender.name}`);
 
         const payload: CombatLaunchPayload = {
           contestedSquare: coord,
@@ -65,23 +94,42 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
 
         const callbacks: CombatBridgeCallbacks = {
           onResult: (combatResult) => {
-            setBoard(applyCombatResult(result.nextState, combatResult));
+            const nextState = applyCombatResult(result.nextState, combatResult);
+            setBoard(nextState);
+            // Log outcome
+            if (combatResult.outcome === 'attacker_wins') {
+              appendLog(`🗡 ${result.attacker.name} defeated ${result.defender.name}`);
+            } else {
+              appendLog(`🛡 ${result.defender.name} repelled ${result.attacker.name}`);
+            }
+            // Detect newly imprisoned pieces from the result
+            const nextPieces = nextState.pieces as Record<string, BoardPieceState>;
+            for (const p of Object.values(nextPieces)) {
+              if ((p as BoardPieceState).imprisoned) {
+                const prevImprisoned = (prevPiecesRef.current[p.pieceId] as BoardPieceState | undefined)?.imprisoned;
+                if (!prevImprisoned) appendLog(`🔒 ${p.name} was imprisoned`);
+              }
+            }
           },
           onCancel: () => {
             setBoard({ ...result.nextState, phase: 'active', selectedPieceId: null, legalMoves: [] });
+            appendLog(`↩ Combat cancelled`);
           },
         };
 
         onLaunchCombat(payload, callbacks);
       } else {
+        // Normal move — log it
+        const mover = board.pieces[board.selectedPieceId!];
         setBoard(result.nextState);
+        appendLog(`➡ ${mover.name} moved to ${coord.row},${coord.col}`);
       }
       return;
     }
 
     // Otherwise deselect
     setBoard(deselectPiece(board));
-  }, [board, pack, onLaunchCombat, setBoard]);
+  }, [board, pack, onLaunchCombat, setBoard, appendLog]);
 
   const winner = board.phase === 'gameover'
     ? (Object.values(board.pieces).some(p => p.faction === 'light' && !p.isDead) ? 'light' : 'dark')
@@ -161,6 +209,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                     piece={piece as BoardPieceState}
                     pack={pack}
                     isSelected={isSelected}
+                    justCured={justCuredId === piece.pieceId}
                   />
                 )}
                 {piece && piece.isDead && (
@@ -219,7 +268,15 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                     <button
                       id="btn-heal-ally"
                       className="sidebar-heal-btn"
-                      onClick={() => setBoard(healAlly(board, board.selectedPieceId!, healTargets[0]))}
+                      onClick={() => {
+                        const caster = board.selectedPieceId!;
+                        const target = healTargets[0];
+                        const targetPiece = board.pieces[target] as BoardPieceState;
+                        setBoard(healAlly(board, caster, target));
+                        appendLog(`✨ ${board.pieces[caster].name} healed ${targetPiece.name}${
+                          targetPiece.imprisoned ? ' — imprisonment cleared' : ''
+                        }${targetPiece.hp < targetPiece.maxHp ? ` +${Math.min(HEAL_AMOUNT, targetPiece.maxHp - targetPiece.hp)} HP` : ''}`);
+                      }}
                       title="Heal adjacent ally — removes imprisonment and restores HP"
                     >
                       {healLabel}
@@ -230,6 +287,15 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
             );
           })()}
         </aside>
+      )}
+
+      {/* 1.0: Board event log */}
+      {boardLog.length > 0 && (
+        <div className="board-log" id="board-log" aria-label="Game log">
+          {boardLog.slice(-6).map((entry, i) => (
+            <div key={i} className="board-log-entry">{entry}</div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -243,7 +309,7 @@ interface TokenProps {
   isSelected?: boolean;
 }
 
-function PieceToken({ piece, pack, isSelected }: TokenProps) {
+function PieceToken({ piece, pack, isSelected, justCured }: TokenProps & { justCured?: boolean }) {
   const tokenUrl = getAssetUrl(pack, piece.assetIds.token);
   const imprisonBadgeUrl = piece.imprisoned ? getAssetUrl(pack, 'spell-imprison-icon-v1') : null;
   return (
@@ -253,6 +319,7 @@ function PieceToken({ piece, pack, isSelected }: TokenProps) {
         `piece-token--${piece.faction}`,
         isSelected ? 'piece-token--selected' : '',
         piece.imprisoned ? 'piece-token--imprisoned' : '',
+        justCured ? 'piece-token--just-cured' : '',
       ].filter(Boolean).join(' ')}
       title={piece.imprisoned
         ? `${piece.name} (${piece.faction}) — IMPRISONED — ${piece.hp}/${piece.maxHp} HP`
