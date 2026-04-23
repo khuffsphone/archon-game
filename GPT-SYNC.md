@@ -1,7 +1,7 @@
 # Archon Project — GPT Sync Document
-**Last Updated:** 2026-04-23 | Milestone 2.1  
-**Completion:** ~65% of full roadmap  
-**Next Objective:** Milestone 2.2 — Difficulty Selector (Easy / Normal / Hard AI)
+**Last Updated:** 2026-04-23 | Milestone 2.2  
+**Completion:** ~72% of full roadmap  
+**Next Objective:** Milestone 2.3 — Piece-Specific Abilities (Phoenix rebirth, Troll regen)
 
 ---
 
@@ -134,11 +134,27 @@ Paste into ChatGPT → Headless Studios at the start of any new session to resto
 - `index.css`: Full arena CSS (HP bars with faction glow, low-HP pulse, timer flash, result overlay, fade animations)
 - Audio: Arena fires `window CustomEvent('arena:sfx')` → `ArenaScene` calls `playSound()`
 
+### ✅ 2.2 — Difficulty Selector
+**FILES:** `src/features/arena/difficultyConfig.ts` (NEW), `TitleScreen.tsx`, `arenaAI.ts`, `gameLoop.ts`, `ArenaScene.tsx`
+- `Difficulty` type: `'easy' | 'normal'` (Hard explicitly deferred)
+- `AIProfile` interface: speedMult, rangeMult, retreatHpRatio, retreatDurationMs, attackSkipChance, useYWander, useJump, reactionDelayMult
+- **Easy profile:** speed ×0.62, range ×0.70, retreat at 52% HP (vs 28%), retreat lasts 2.6s, skips 45% of attacks, no Y-wander, no jump, 2.8× reaction delay
+- **Normal profile:** exact 2.1 behaviour unchanged
+- `persistDifficulty()` / `getDifficulty()` via `sessionStorage` — survives refresh, clears on tab close
+- `getActiveProfile()` returns the live AIProfile — read once at `GameLoop` construction
+- `createAIController()` now accepts AIProfile, scales reactionDelay via `reactionDelayMult`
+- `tickAI()` now accepts AIProfile as 5th arg — applies all knobs per frame
+- **Title Screen selector:** Easy / Normal buttons with `aria-pressed`, active golden border, description sub-label
+- **Arena HUD badge:** small pill below VS label — green for EASY, gold for NORMAL
+- `HudSnapshot.difficulty` field added — badge reads from live snapshot
+- **28 new tests** (19 difficultyConfig + 9 arenaAI): profile definitions, Easy vs Normal comparisons, persistence, reaction delay, speed, retreat threshold, attack skip, Y-wander flags
+- **Total: 85/85 tests passing · TSC clean**
+
 ---
 
 ## Current Test Status
 ```
-57 tests / 57 passing
+85 tests / 85 passing (57 board + 19 difficultyConfig + 9 arenaAI)
 tsc --noEmit: 0 errors
 ```
 
@@ -156,13 +172,17 @@ src/
       audioEngine.ts              ← Web Audio system
       TitleScreen.tsx             ← Splash / main menu
     arena/
-      ArenaScene.tsx              ← React shell + DOM HUD
+      ArenaScene.tsx              ← React shell + DOM HUD + difficulty badge
       gameLoop.ts                 ← rAF loop (the core engine)
-      entities.ts                 ← Stat mapper
-      arenaAI.ts                  ← Enemy FSM
-      arenaPhysics.ts             ← AABB physics
+      entities.ts                 ← Stat mapper + HudSnapshot
+      arenaAI.ts                  ← Enemy FSM (AIProfile-driven)
+      arenaPhysics.ts             ← AABB physics + gravity + projectiles
       arenaRenderer.ts            ← Canvas draw calls
       arenaConfig.ts              ← Tunable constants
+      difficultyConfig.ts         ← AIProfile system + sessionStorage persistence
+      __tests__/
+        difficultyConfig.test.ts  ← Profile + persistence tests
+        arenaAI.test.ts           ← Easy vs Normal behaviour tests
     combat/
       CombatBridge.tsx            ← Legacy static combat (preserved)
       CombatScene.tsx             ← Original combat demo tab
@@ -177,12 +197,12 @@ src/
 ## Next Steps (Pending User Direction)
 
 | Option | Description | Effort |
-|---|---|---|
-| A | **Arena Polish** — ranged attacks (caster), piece specials, jump physics | 2 sessions |
-| B | **Difficulty Selector** — Easy (random), Normal (current), Hard (minimax) | 1 session |
-| C | **Two-Player Keyboard** — Player 2 = IJKL + L-Shift for arena fights | 0.5 session |
-| D | **Persistent Save** — localStorage game state, resume on reload | 1 session |
-| E | **Piece-Specific Abilities** — Phoenix rebirth, Banshee wail AoE, etc. | 3 sessions |
+|---|---|
+| A | **Piece Abilities** — Phoenix rebirth, Troll regen, Banshee wail AoE | 2-3 sessions |
+| B | **Two-Player Keyboard** — Player 2 = IJKL + L-Shift | 0.5 session |
+| C | **Hard AI** — minimax/search look-ahead | 2 sessions |
+| D | **Persistent Save** — localStorage game state resume | 1 session |
+| E | **Round System** — best-of-3 arena rounds before board result | 1 session |
 
 ---
 
@@ -195,4 +215,4 @@ src/
 
 ---
 
-*This document is auto-maintained by Antigravity. Last sync: 2026-04-23T17:15:00Z*
+*This document is auto-maintained by Antigravity. Last sync: 2026-04-23T18:13:00Z*
