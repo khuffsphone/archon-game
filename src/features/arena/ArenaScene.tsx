@@ -170,7 +170,7 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
             faction="light" name={hud.playerName} side="left"
           />
 
-          {/* Center: timer + labels */}
+          {/* Center: timer + VS + difficulty badge */}
           <div className="arena-hud-center">
             <div className={`arena-timer ${timerLow ? 'arena-timer--low' : ''}`}>
               {hud.phase === 'countdown'
@@ -179,6 +179,13 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
               }
             </div>
             <div className="arena-vs">VS</div>
+            <div
+              className={`arena-difficulty arena-difficulty--${hud.difficulty}`}
+              id="arena-difficulty-badge"
+              title={`AI Difficulty: ${hud.difficulty}`}
+            >
+              {hud.difficulty.toUpperCase()}
+            </div>
           </div>
 
           {/* Enemy HP (right) */}

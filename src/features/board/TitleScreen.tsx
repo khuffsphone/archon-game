@@ -1,16 +1,12 @@
 /**
- * TitleScreen.tsx — Archon 1.9
+ * TitleScreen.tsx — Archon 2.2
  *
- * Cinematic splash / main-menu screen shown before the board.
- * Features:
- *   - Animated ARCHON title with golden glow sweep
- *   - Light vs Dark faction crest icons with breathing animation
- *   - New Game CTA button
- *   - Condensed rules / win-condition summary
- *   - Keyboard shortcut (Enter / Space → New Game)
- *   - Smooth fade-out transition into the board
+ * Added: Difficulty selector (Easy / Normal) above the New Game button.
+ * Persists selected difficulty to sessionStorage via difficultyConfig.
  */
 import React, { useEffect, useState, useCallback } from 'react';
+import type { Difficulty } from '../arena/difficultyConfig';
+import { persistDifficulty, getDifficulty } from '../arena/difficultyConfig';
 
 interface Props {
   onStart: () => void;
@@ -44,22 +40,30 @@ const RULES = [
   },
 ];
 
+const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [
+  { value: 'easy',   label: 'Easy',   desc: 'Slower, more forgiving AI' },
+  { value: 'normal', label: 'Normal', desc: 'Full arena AI (2.1 behaviour)' },
+];
+
 export function TitleScreen({ onStart }: Props) {
-  const [exiting, setExiting] = useState(false);
+  const [exiting, setExiting]       = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>(getDifficulty);
+
+  const handleDifficulty = (d: Difficulty) => {
+    setDifficulty(d);
+    persistDifficulty(d);
+  };
 
   const handleStart = useCallback(() => {
     if (exiting) return;
     setExiting(true);
-    setTimeout(onStart, 600); // wait for fade-out
+    setTimeout(onStart, 600);
   }, [exiting, onStart]);
 
-  // Keyboard shortcut: Enter or Space
+  // Keyboard shortcut: Enter or Space → New Game
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleStart();
-      }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStart(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -93,6 +97,28 @@ export function TitleScreen({ onStart }: Props) {
           </div>
         </div>
 
+        {/* ── Difficulty Selector ─────────────────────────────────────── */}
+        <div className="title-difficulty" role="group" aria-label="Select difficulty">
+          <span className="title-difficulty__label">Difficulty</span>
+          <div className="title-difficulty__options">
+            {DIFFICULTIES.map(({ value, label, desc }) => (
+              <button
+                key={value}
+                id={`btn-difficulty-${value}`}
+                className={`title-difficulty__btn ${difficulty === value ? 'title-difficulty__btn--active' : ''}`}
+                onClick={() => handleDifficulty(value)}
+                aria-pressed={difficulty === value}
+                title={desc}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="title-difficulty__desc">
+            {DIFFICULTIES.find(d => d.value === difficulty)?.desc}
+          </span>
+        </div>
+
         {/* CTA */}
         <button
           id="btn-new-game"
@@ -121,7 +147,7 @@ export function TitleScreen({ onStart }: Props) {
         </section>
 
         <footer className="title-footer">
-          <span>Archon v1.9 · Headless Studios</span>
+          <span>Archon v2.2 · Headless Studios</span>
         </footer>
       </div>
     </div>

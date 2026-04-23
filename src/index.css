@@ -143,6 +143,71 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 /* Footer */
 .title-footer { font: 400 11px 'Inter', sans-serif; color: hsl(0,0%,30%); text-align: center; }
 
+/* ── Difficulty Selector (Title Screen) ──────────────────────── */
+.title-difficulty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  margin-bottom: 20px;
+}
+.title-difficulty__label {
+  font: 600 12px 'Inter', sans-serif;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.title-difficulty__options {
+  display: flex; gap: 10px;
+}
+.title-difficulty__btn {
+  padding: 8px 28px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  font: 600 13px 'Cinzel', serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.title-difficulty__btn:hover {
+  border-color: rgba(255,255,255,0.3);
+  color: var(--text);
+  background: rgba(255,255,255,0.09);
+}
+.title-difficulty__btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(250,200,50,0.08);
+  box-shadow: 0 0 14px rgba(250,200,50,0.15);
+}
+.title-difficulty__desc {
+  font: 400 11px 'Inter', sans-serif;
+  color: hsl(0,0%,35%);
+  min-height: 16px;
+}
+
+/* ── Arena Difficulty Badge (HUD) ────────────────────────────── */
+.arena-difficulty {
+  font: 700 10px 'Cinzel', serif;
+  letter-spacing: 0.14em;
+  padding: 2px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.4);
+  color: var(--text-muted);
+  margin-top: 2px;
+  pointer-events: none;
+}
+.arena-difficulty--easy {
+  color: hsl(140, 70%, 55%);
+  border-color: hsl(140, 60%, 35%, 0.5);
+  background: hsl(140, 50%, 12%, 0.5);
+}
+.arena-difficulty--normal {
+  color: hsl(43, 90%, 60%);
+  border-color: hsl(43, 70%, 35%, 0.5);
+  background: hsl(43, 50%, 10%, 0.5);
+}
+
 /* ═══════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════

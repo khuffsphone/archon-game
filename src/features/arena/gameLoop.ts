@@ -1,10 +1,8 @@
 /**
- * gameLoop.ts — Archon 2.0 Arena Game Loop
+ * gameLoop.ts — Archon 2.2 Arena Game Loop
  *
- * Pure TypeScript class. Zero React dependencies.
- * Owns the requestAnimationFrame loop, input state, and all per-frame logic.
- *
- * v2.1 — Jump physics, ranged projectiles, caster AI improvements
+ * Reads the active Difficulty at startup and passes the corresponding
+ * AIProfile to tickAI every frame. All other behaviour is unchanged from 2.1.
  */
 import type { ArenaEntity, HitEffect, HudSnapshot, Projectile } from './entities';
 import type { AIController } from './arenaAI';
@@ -20,6 +18,8 @@ import {
   PROJECTILE_SPEED, PROJECTILE_LIFETIME_MS, PROJECTILE_W, PROJECTILE_H,
   JUMP_IMPULSE,
 } from './arenaConfig';
+import { getDifficulty, getActiveProfile } from './difficultyConfig';
+import type { AIProfile, Difficulty } from './difficultyConfig';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,10 +29,10 @@ export type ArenaResult =
   | { winner: 'timeout-defender' };
 
 export interface ArenaConfig {
-  player:     ArenaEntity;
-  enemy:      ArenaEntity;
-  arenaUrl:   string;
-  faction:    'light' | 'dark';
+  player:   ArenaEntity;
+  enemy:    ArenaEntity;
+  arenaUrl: string;
+  faction:  'light' | 'dark';
 }
 
 // ─── Input sets ───────────────────────────────────────────────────────────────
@@ -42,15 +42,14 @@ const MOVE_RIGHT = new Set(['ArrowRight', 'd', 'D']);
 const JUMP_KEYS  = new Set(['ArrowUp', 'w', 'W', ' ']);
 const ATTACK     = new Set(['z', 'Z', 'x', 'X', 'Enter']);
 
-// Attack state durations (ms)
 const WINDUP_MS   = 110;
 const ACTIVE_MS   = 100;
 const RECOVERY_MS = 190;
 const INVULN_MS   = 320;
 
-// ─── Game Loop Class ──────────────────────────────────────────────────────────
-
 let _projIdCounter = 0;
+
+// ─── Game Loop ────────────────────────────────────────────────────────────────
 
 export class GameLoop {
   private canvas: HTMLCanvasElement;
@@ -58,19 +57,21 @@ export class GameLoop {
   private config: ArenaConfig;
 
   private rafId: number | null = null;
-  private lastTime: number = 0;
-  private heldKeys = new Set<string>();
-  private justPressedKeys = new Set<string>(); // cleared each frame
+  private lastTime = 0;
+  private heldKeys      = new Set<string>();
+  private justPressedKeys = new Set<string>();
 
   private player: ArenaEntity;
   private enemy:  ArenaEntity;
   private ai: AIController;
+  private profile: AIProfile;
+  private difficulty: Difficulty;
 
   private effects: HitEffect[] = [];
   private projectiles: Projectile[] = [];
 
   private phase: 'countdown' | 'fighting' | 'result' = 'countdown';
-  private countdownMs   = ARENA_COUNTDOWN_MS;
+  private countdownMs     = ARENA_COUNTDOWN_MS;
   private timeRemainingMs = ARENA_DURATION_MS;
 
   private resultCb: ((r: ArenaResult) => void) | null = null;
@@ -83,51 +84,37 @@ export class GameLoop {
     this.config  = config;
     this.player  = config.player;
     this.enemy   = config.enemy;
-    this.ai      = createAIController(this.enemy);
+
+    // Read difficulty once at arena launch
+    this.difficulty = getDifficulty();
+    this.profile    = getActiveProfile();
+    this.ai = createAIController(this.enemy, this.profile);
+
     canvas.width  = CANVAS_W;
     canvas.height = CANVAS_H;
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
 
-  start(): void {
-    this._attachInput();
-    this.lastTime = performance.now();
-    this.rafId = requestAnimationFrame(this._tick);
-  }
-
-  stop(): void {
-    if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; }
-    this._detachInput();
-  }
-
+  start(): void { this._attachInput(); this.lastTime = performance.now(); this.rafId = requestAnimationFrame(this._tick); }
+  stop():  void { if (this.rafId !== null) { cancelAnimationFrame(this.rafId); this.rafId = null; } this._detachInput(); }
   onResult(cb: (r: ArenaResult) => void): void { this.resultCb = cb; }
-  onHudUpdate(cb: (snap: HudSnapshot) => void): void { this.hudCb = cb; }
+  onHudUpdate(cb: (s: HudSnapshot) => void): void { this.hudCb = cb; }
 
   // ─── Input ────────────────────────────────────────────────────────────────
 
   private _onKeyDown = (e: KeyboardEvent) => {
     if (!this.heldKeys.has(e.key)) this.justPressedKeys.add(e.key);
     this.heldKeys.add(e.key);
-    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key))
-      e.preventDefault();
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
   };
-
   private _onKeyUp = (e: KeyboardEvent) => { this.heldKeys.delete(e.key); };
+  private _attachInput() { window.addEventListener('keydown', this._onKeyDown); window.addEventListener('keyup', this._onKeyUp); }
+  private _detachInput() { window.removeEventListener('keydown', this._onKeyDown); window.removeEventListener('keyup', this._onKeyUp); }
 
-  private _attachInput(): void {
-    window.addEventListener('keydown', this._onKeyDown);
-    window.addEventListener('keyup',   this._onKeyUp);
-  }
+  // ─── Tick ─────────────────────────────────────────────────────────────────
 
-  private _detachInput(): void {
-    window.removeEventListener('keydown', this._onKeyDown);
-    window.removeEventListener('keyup',   this._onKeyUp);
-  }
-
-  // ─── Main tick ────────────────────────────────────────────────────────────
-
-  private _tick = (now: number): void => {
+  private _tick = (now: number) => {
     const dt = Math.min(now - this.lastTime, 50);
     this.lastTime = now;
     this._update(dt);
@@ -140,7 +127,6 @@ export class GameLoop {
   // ─── Update ───────────────────────────────────────────────────────────────
 
   private _update(dt: number): void {
-    // Countdown
     if (this.phase === 'countdown') {
       this.countdownMs -= dt;
       if (this.countdownMs <= 0) { this.phase = 'fighting'; this.countdownMs = 0; }
@@ -148,64 +134,50 @@ export class GameLoop {
     }
     if (this.phase === 'result') return;
 
-    // Timer
     this.timeRemainingMs -= dt;
     if (this.timeRemainingMs <= 0) { this.timeRemainingMs = 0; this._endFight('timeout'); return; }
 
-    // Tick cooldowns / invuln
     if (this.player.attackTimer  > 0) this.player.attackTimer  -= dt;
     if (this.enemy.attackTimer   > 0) this.enemy.attackTimer   -= dt;
     if (this.player.invulnTimer  > 0) this.player.invulnTimer  -= dt;
     if (this.enemy.invulnTimer   > 0) this.enemy.invulnTimer   -= dt;
 
-    // Player attack state machine
+    // Player
     this._tickAttackState(this.player, this.enemy, dt);
-
-    // Player input → velocity
-    this._processPlayerInput(dt);
+    this._processPlayerInput();
     moveEntity(this.player, dt);
 
-    // Enemy AI tick
-    const aiWantsAttack = tickAI(this.ai, this.enemy, this.player, dt);
+    // Enemy AI — pass profile for this session's difficulty
+    const aiWantsAttack = tickAI(this.ai, this.enemy, this.player, dt, this.profile);
     if (aiWantsAttack && this.enemy.attackState === 'idle' && this.enemy.attackTimer <= 0) {
       this._startAttack(this.enemy);
     }
     this._tickAttackState(this.enemy, this.player, dt);
     moveEntity(this.enemy, dt);
 
-    // Projectiles
     this._tickProjectiles(dt);
 
-    // Hit effects
     for (const fx of this.effects) fx.timeRemaining -= dt;
     this.effects = this.effects.filter(fx => fx.timeRemaining > 0);
   }
 
   // ─── Player input ─────────────────────────────────────────────────────────
 
-  private _processPlayerInput(dt: number): void {
-    void dt;
+  private _processPlayerInput(): void {
     const p = this.player;
     const speed = p.moveSpeed;
-
     p.vx = 0;
-    // Don't reset vy — gravity is applied in moveEntity
 
-    if ([...MOVE_LEFT].some(k  => this.heldKeys.has(k)))  { p.vx = -speed; p.facing = 'left';  }
-    if ([...MOVE_RIGHT].some(k => this.heldKeys.has(k)))  { p.vx =  speed; p.facing = 'right'; }
+    if ([...MOVE_LEFT].some(k  => this.heldKeys.has(k))) { p.vx = -speed; p.facing = 'left';  }
+    if ([...MOVE_RIGHT].some(k => this.heldKeys.has(k))) { p.vx =  speed; p.facing = 'right'; }
 
-    // Jump — only when on floor, triggered on key-press (not hold)
-    const jumpPressed = [...JUMP_KEYS].some(k => this.justPressedKeys.has(k));
-    if (jumpPressed && p.onFloor) {
+    if ([...JUMP_KEYS].some(k => this.justPressedKeys.has(k)) && p.onFloor) {
       p.vy = JUMP_IMPULSE;
     }
 
-    // Auto-face enemy while attacking
     if (p.attackState !== 'idle') p.facing = directionTo(p, this.enemy);
 
-    // Attack: Z/X/Enter (NOT Space — Space is now jump)
-    const wantsAttack = [...ATTACK].some(k => this.justPressedKeys.has(k));
-    if (wantsAttack && p.attackState === 'idle' && p.attackTimer <= 0) {
+    if ([...ATTACK].some(k => this.justPressedKeys.has(k)) && p.attackState === 'idle' && p.attackTimer <= 0) {
       this._startAttack(p);
     }
   }
@@ -221,7 +193,6 @@ export class GameLoop {
     if (attacker.attackState === 'idle') return;
     attacker.attackStateTimer -= dt;
     if (attacker.attackStateTimer > 0) return;
-
     switch (attacker.attackState) {
       case 'windup':
         attacker.attackState = 'active';
@@ -241,10 +212,8 @@ export class GameLoop {
 
   private _resolveAttack(attacker: ArenaEntity, target: ArenaEntity): void {
     if (attacker.isRanged) {
-      // Fire a projectile instead of instant melee
       this._spawnProjectile(attacker);
     } else {
-      // Instant melee check
       if (target.invulnTimer > 0) return;
       if (!checkMeleeHit(attacker, target)) return;
       this._applyDamage(attacker, target);
@@ -272,26 +241,23 @@ export class GameLoop {
   }
 
   private _tickProjectiles(dt: number): void {
-    const surviving: Projectile[] = [];
+    const alive: Projectile[] = [];
     for (const proj of this.projectiles) {
-      const alive = moveProjectile(proj, dt);
-      if (!alive) continue;
-
-      // Check hit against opposite entity
+      if (!moveProjectile(proj, dt)) continue;
       const target = proj.ownerSide === 'player' ? this.enemy : this.player;
       if (target.invulnTimer <= 0 && checkProjectileHit(proj, target)) {
-        this._applyDamage({ ...target, attackDamage: proj.damage, faction: proj.faction } as ArenaEntity, target);
-        // Don't keep this projectile
+        const dmgAttacker = { attackDamage: proj.damage, faction: proj.faction } as Pick<ArenaEntity, 'attackDamage' | 'faction'>;
+        this._applyDamage(dmgAttacker as ArenaEntity, target);
         continue;
       }
-      surviving.push(proj);
+      alive.push(proj);
     }
-    this.projectiles = surviving;
+    this.projectiles = alive;
   }
 
   // ─── Damage ───────────────────────────────────────────────────────────────
 
-  private _applyDamage(attacker: { attackDamage: number; faction: 'light' | 'dark' }, target: ArenaEntity): void {
+  private _applyDamage(attacker: Pick<ArenaEntity, 'attackDamage' | 'faction'>, target: ArenaEntity): void {
     const dmg = Math.max(1, Math.round(attacker.attackDamage));
     target.hp = Math.max(0, target.hp - dmg);
     target.invulnTimer = INVULN_MS;
@@ -311,9 +277,7 @@ export class GameLoop {
       },
     }));
 
-    if (target.hp <= 0) {
-      this._endFight(target.side === 'player' ? 'enemy-wins' : 'player-wins');
-    }
+    if (target.hp <= 0) this._endFight(target.side === 'player' ? 'enemy-wins' : 'player-wins');
   }
 
   // ─── Win condition ────────────────────────────────────────────────────────
@@ -321,21 +285,11 @@ export class GameLoop {
   private _endFight(reason: 'player-wins' | 'enemy-wins' | 'timeout'): void {
     if (this.phase === 'result') return;
     this.phase = 'result';
-
     let result: ArenaResult;
-    if (reason === 'player-wins') {
-      result = { winner: 'player', remainingHp: this.player.hp };
-      this.winner = 'player';
-    } else if (reason === 'enemy-wins') {
-      result = { winner: 'enemy', remainingHp: this.enemy.hp };
-      this.winner = 'enemy';
-    } else {
-      result = { winner: 'timeout-defender' };
-      this.winner = 'timeout';
-    }
-
-    this._render();
-    this._emitHud();
+    if (reason === 'player-wins')      { result = { winner: 'player', remainingHp: this.player.hp }; this.winner = 'player'; }
+    else if (reason === 'enemy-wins')  { result = { winner: 'enemy',  remainingHp: this.enemy.hp  }; this.winner = 'enemy';  }
+    else                               { result = { winner: 'timeout-defender' };                     this.winner = 'timeout'; }
+    this._render(); this._emitHud();
     setTimeout(() => { this.resultCb?.(result); }, 1800);
   }
 
@@ -353,10 +307,10 @@ export class GameLoop {
     if (this.phase === 'countdown') drawCountdown(ctx, Math.ceil(this.countdownMs / 1000));
   }
 
-  // ─── HUD emission ─────────────────────────────────────────────────────────
+  // ─── HUD snapshot ─────────────────────────────────────────────────────────
 
   private _emitHud(): void {
-    const snap: HudSnapshot = {
+    this.hudCb?.({
       playerHp:        this.player.hp,
       playerMaxHp:     this.player.maxHp,
       playerName:      this.player.name,
@@ -367,7 +321,7 @@ export class GameLoop {
       phase:           this.phase,
       countdownSec:    Math.ceil(this.countdownMs / 1000),
       winner:          this.winner,
-    };
-    this.hudCb?.(snap);
+      difficulty:      this.difficulty,
+    });
   }
 }

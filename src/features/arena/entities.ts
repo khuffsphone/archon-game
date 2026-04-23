@@ -89,6 +89,7 @@ export interface HudSnapshot {
   phase: 'countdown' | 'fighting' | 'result';
   countdownSec: number;
   winner: 'player' | 'enemy' | 'timeout' | null;
+  difficulty: import('./difficultyConfig').Difficulty;
 }
 
 // ─── Stat Mapper ─────────────────────────────────────────────────────────────
