@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { CombatBridge } from './features/combat/CombatBridge';
 import { BoardScene } from './features/board/BoardScene';
+import { TitleScreen } from './features/board/TitleScreen';
+import { ArenaScene } from './features/arena/ArenaScene';
 import { CombatPackManifest } from './lib/types';
 import { validatePack } from './lib/packLoader';
 import combatPackData from './combat-pack-manifest.json';
@@ -27,12 +29,18 @@ const REQUIRED_IDS = [
   'sfx-melee-hit',
 ];
 
-// App mode: 'board' is the Part 2 entry point, 'combat' preserves the v1.1.1 standalone
-type AppMode = 'board' | 'combat';
+// App mode: 'title' is the entry splash, 'board' is the main game, 'combat' preserves standalone
+type AppMode = 'title' | 'board' | 'combat';
+
+/** Feature flag: ?arena=1 routes board combat to the new 2D ArenaScene */
+const USE_ARENA = new URLSearchParams(window.location.search).get('arena') === '1';
 
 function getInitialMode(): AppMode {
   const params = new URLSearchParams(window.location.search);
-  return params.get('mode') === 'combat' ? 'combat' : 'board';
+  if (params.get('mode') === 'combat') return 'combat';
+  // If a ?setup= param is present, skip title for QA convenience
+  if (params.get('setup')) return 'board';
+  return 'title';
 }
 
 function getInitialBoardState(): BoardState {
@@ -112,6 +120,17 @@ export default function App() {
 
   if (!pack) return <div className="loading-screen">Loading combat pack…</div>;
 
+  // 1.9: Title screen — shown before the board on fresh load
+  if (mode === 'title') {
+    return (
+      <TitleScreen
+        onStart={() => {
+          setBoardState(getInitialBoardState());
+          setMode('board');
+        }}
+      />
+    );
+  }
   // Mode toggle (dev tool — top-right corner)
   const modeToggle = (
     <div className="mode-toggle" id="mode-toggle">
@@ -135,7 +154,18 @@ export default function App() {
   // Board mode — board is active, and possibly combat is in progress
   if (mode === 'board') {
     if (combatPayload && combatCallbacks) {
-      // Combat phase launched from board
+      // 2.0: Route to interactive ArenaScene when ?arena=1 flag is set
+      if (USE_ARENA) {
+        return (
+          <div className="app-root">
+            <ArenaScene
+              payload={combatPayload}
+              callbacks={combatCallbacks}
+            />
+          </div>
+        );
+      }
+      // Legacy: static CombatBridge
       return (
         <div className="app-root">
           {modeToggle}

@@ -16,9 +16,15 @@ import type {
 import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
   applyCombatResult, checkBoardAssets, BOARD_SIZE, IMPRISONMENT_TURNS,
-  healAlly, getAdjacentHealTargets, HEAL_AMOUNT,
+  healAlly, getAdjacentHealTargets, HEAL_AMOUNT, getGameOverMeta, getMoveProfileLabel,
+  isPowerSquare, POWER_REGEN, POWER_SQUARES,
+  checkPowerSquareWin, getPowerSquareControlMap, getPowerSquareController,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
+import { chooseAiMove, describeAiAction } from './aiEngine';
+import {
+  playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
+} from './audioEngine';
 import { getAssetUrl } from '../../lib/packLoader';
 
 interface Props {
@@ -42,6 +48,41 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     setBoardLog(prev => [...prev.slice(-99), entry]);
   }, []);
 
+  // ── 1.8: Audio state ────────────────────────────────────────────────────────
+  const [audioMuted, setAudioMuted] = useState<boolean>(isMuted());
+  const hasPreloaded = useRef(false);
+
+  // Preload all sounds on first board interaction (respects browser autoplay policy)
+  const ensurePreloaded = useCallback(() => {
+    if (!hasPreloaded.current) {
+      hasPreloaded.current = true;
+      preloadSounds();
+    }
+  }, []);
+
+  // Start music when game becomes active, stop on gameover
+  useEffect(() => {
+    if (board.phase === 'active') {
+      playMusic();
+    } else if (board.phase === 'gameover') {
+      stopMusic(1.5);
+      playSound('victory').catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.phase]);
+
+  // Play turn-announcement voice when faction changes
+  const prevTurnFactionRef = useRef<string>('');
+  useEffect(() => {
+    if (board.phase !== 'active') return;
+    if (board.turnFaction === prevTurnFactionRef.current) return;
+    prevTurnFactionRef.current = board.turnFaction;
+    // Skip very first render
+    if (!hasPreloaded.current) return;
+    playSound(board.turnFaction === 'light' ? 'turn-light' : 'turn-dark').catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.turnFaction, board.phase]);
+
   // ── 1.0: Cure flash — detect imprisoned→false transitions ──────────────────
   const [justCuredId, setJustCuredId] = useState<string | null>(null);
   const prevPiecesRef = useRef<Record<string, BoardPieceState>>({});
@@ -64,8 +105,74 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     return () => clearTimeout(t);
   }, [justCuredId]);
 
+  // ── 1.6: AI v1 — Dark faction CPU ──────────────────────────────────────────
+  const AI_FACTION = 'dark' as const;
+  const [isAiThinking, setIsAiThinking] = React.useState(false);
+
+  useEffect(() => {
+    if (board.phase !== 'active') return;
+    if (board.turnFaction !== AI_FACTION) return;
+
+    setIsAiThinking(true);
+    const t = setTimeout(() => {
+      setIsAiThinking(false);
+      const action = chooseAiMove(board, AI_FACTION);
+      if (!action) return; // no legal moves — board already handles win/stalemate
+
+      appendLog(describeAiAction(action, board));
+
+      // Select the piece so executeMove can validate it
+      const withSelection = selectPiece(board, action.pieceId);
+      const result = executeMove(withSelection, action.targetCoord);
+
+      if (result.type === 'contest') {
+        // AI triggered combat — suspend board and launch combat bridge
+        setBoard(result.nextState);
+        appendLog(`⚔ ${result.attacker.name} challenges ${result.defender.name}`);
+        playSound('combat').catch(() => {});
+
+        const payload = {
+          contestedSquare: action.targetCoord,
+          attacker: result.attacker,
+          defender: result.defender,
+          pack,
+        };
+
+        onLaunchCombat(payload, {
+          onResult: (combatResult) => {
+            const nextState = applyCombatResult(result.nextState, combatResult);
+            setBoard(nextState);
+            if (combatResult.outcome === 'attacker_wins') {
+              appendLog(`🗡 ${result.attacker.name} defeated ${result.defender.name}`);
+              playSound(result.defender.faction === 'dark' ? 'death-dark' : 'death-light').catch(() => {});
+            } else {
+              appendLog(`🛡 ${result.defender.name} repelled ${result.attacker.name}`);
+              playSound('hit-heavy').catch(() => {});
+            }
+          },
+          onCancel: () => setBoard(board),
+        });
+      } else {
+        // Normal move
+        setBoard(result.nextState);
+        playSound('move-dark').catch(() => {});
+      }
+    }, 750);
+
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.turnFaction, board.phase, board.turnNumber]);
+
+
   const handleSquareClick = useCallback((coord: BoardCoord) => {
+    // Block player interaction while AI is thinking or during combat/gameover
+    if (isAiThinking) return;
     if (board.phase === 'combat' || board.phase === 'gameover') return;
+    // Block player clicks on dark's turn (it's the AI's turn)
+    if (board.turnFaction === AI_FACTION) return;
+
+    // 1.8: Unlock audio context on first user gesture
+    ensurePreloaded();
 
     const clickedPieceId = board.squares[coord.row][coord.col].pieceId;
     const clickedPiece = clickedPieceId ? board.pieces[clickedPieceId] : null;
@@ -84,6 +191,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         // Launch combat — board suspends
         setBoard(result.nextState); // phase = 'combat'
         appendLog(`⚔ ${result.attacker.name} challenges ${result.defender.name}`);
+        playSound('combat').catch(() => {});
 
         const payload: CombatLaunchPayload = {
           contestedSquare: coord,
@@ -96,18 +204,23 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           onResult: (combatResult) => {
             const nextState = applyCombatResult(result.nextState, combatResult);
             setBoard(nextState);
-            // Log outcome
+            // Log + audio outcome
             if (combatResult.outcome === 'attacker_wins') {
               appendLog(`🗡 ${result.attacker.name} defeated ${result.defender.name}`);
+              playSound(result.defender.faction === 'dark' ? 'death-dark' : 'death-light').catch(() => {});
             } else {
               appendLog(`🛡 ${result.defender.name} repelled ${result.attacker.name}`);
+              playSound('hit').catch(() => {});
             }
             // Detect newly imprisoned pieces from the result
             const nextPieces = nextState.pieces as Record<string, BoardPieceState>;
             for (const p of Object.values(nextPieces)) {
               if ((p as BoardPieceState).imprisoned) {
                 const prevImprisoned = (prevPiecesRef.current[p.pieceId] as BoardPieceState | undefined)?.imprisoned;
-                if (!prevImprisoned) appendLog(`🔒 ${p.name} was imprisoned`);
+                if (!prevImprisoned) {
+                  appendLog(`🔒 ${p.name} was imprisoned`);
+                  playSound('magic').catch(() => {});
+                }
               }
             }
           },
@@ -119,22 +232,31 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
 
         onLaunchCombat(payload, callbacks);
       } else {
-        // Normal move — log it
+        // Normal move — log it + play move sound
         const mover = board.pieces[board.selectedPieceId!];
         setBoard(result.nextState);
         appendLog(`➡ ${mover.name} moved to ${coord.row},${coord.col}`);
+        playSound('move-light').catch(() => {});
       }
       return;
     }
 
     // Otherwise deselect
     setBoard(deselectPiece(board));
-  }, [board, pack, onLaunchCombat, setBoard, appendLog]);
+  }, [board, pack, onLaunchCombat, setBoard, appendLog, ensurePreloaded]);
 
-  const winner = board.phase === 'gameover'
-    ? (Object.values(board.pieces).some(p => p.faction === 'light' && !p.isDead) ? 'light' : 'dark')
-    : null;
+  // 1.7: compute game-over metadata — pass squares for power-square win check
+  const gameOverMeta = board.phase === 'gameover'
+    ? getGameOverMeta(board.pieces, board.squares)
+    : undefined;
 
+  // Derive winner from meta (handles power-square win correctly)
+  const winner = gameOverMeta?.winnerFaction ?? null;
+
+  // 1.7: live power-square control map for HUD strip
+  const psControlMap = getPowerSquareControlMap(board.squares, board.pieces);
+  const lightPsCount = psControlMap.filter(e => e.controller === 'light').length;
+  const darkPsCount  = psControlMap.filter(e => e.controller === 'dark').length;
   return (
     <div className="board-scene" id="board-scene">
       {/* Board HUD */}
@@ -142,11 +264,30 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         <div className="hud-left">
           <span className="game-title">⚔ Archon</span>
           <span className="board-subtitle">Board Alpha</span>
+          {/* 1.7: Power-square control strip */}
+          <div className="ps-strip" id="ps-strip" aria-label="Power square control">
+            {psControlMap.map((entry, i) => (
+              <span
+                key={i}
+                className={[
+                  'ps-pip',
+                  entry.controller === 'light' ? 'ps-pip--light' : '',
+                  entry.controller === 'dark'  ? 'ps-pip--dark'  : '',
+                  !entry.controller ? 'ps-pip--empty' : '',
+                ].filter(Boolean).join(' ')}
+                title={`(${entry.coord.row},${entry.coord.col}): ${entry.controller ?? 'uncontrolled'}`}
+              >⚡</span>
+            ))}
+            <span className="ps-score">{lightPsCount}L / {darkPsCount}D</span>
+          </div>
         </div>
         <div className="hud-center">
           {board.phase === 'active' && (
-            <span className={`turn-indicator turn-indicator--${board.turnFaction}`}>
-              {board.turnFaction === 'light' ? '☀ Light' : '🌑 Dark'} — Turn {board.turnNumber}
+            <span className={`turn-indicator turn-indicator--${isAiThinking ? 'ai' : board.turnFaction}`}>
+              {isAiThinking
+                ? '🤖 Dark is thinking…'
+                : board.turnFaction === 'light' ? '✦ Light — Your Turn' : '🌑 Dark — Turn ' + board.turnNumber
+              }
             </span>
           )}
           {board.phase === 'combat' && (
@@ -154,11 +295,27 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           )}
           {board.phase === 'gameover' && (
             <span className={`turn-indicator turn-indicator--${winner}`}>
-              {winner === 'light' ? '☀ Light Wins!' : '🌑 Dark Wins!'}
+              {gameOverMeta?.reason === 'power_squares_controlled'
+                ? `${winner === 'light' ? '✦ Light' : '🌑 Dark'} ⚡ Controls All 5!`
+                : winner === 'light' ? '✦ Light Wins!' : '🌑 Dark Wins!'
+              }
             </span>
           )}
         </div>
         <div className="hud-right">
+          {/* 1.8: Mute toggle */}
+          <button
+            id="btn-mute"
+            className={`btn-mute ${audioMuted ? 'btn-mute--off' : ''}`}
+            title={audioMuted ? 'Unmute sound' : 'Mute sound'}
+            onClick={() => {
+              const next = toggleMute();
+              setAudioMuted(next);
+            }}
+            aria-label={audioMuted ? 'Unmute' : 'Mute'}
+          >
+            {audioMuted ? '🔇' : '🔊'}
+          </button>
           {board.phase === 'gameover' && (
             <button
               id="btn-board-reset"
@@ -197,6 +354,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                   isLegal ? 'board-square--legal' : '',
                   hasEnemy ? 'board-square--attack' : '',
                   (rowIdx + colIdx) % 2 === 0 ? 'board-square--even' : 'board-square--odd',
+                  isPowerSquare({ row: rowIdx, col: colIdx }) ? 'board-square--power' : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => handleSquareClick({ row: rowIdx, col: colIdx })}
               >
@@ -256,7 +414,15 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                 <div className="sidebar-info">
                   <div className="sidebar-name">{p.name}</div>
                   <div className="sidebar-role">{p.role}</div>
+                  <div className="sidebar-move-profile" id={`sidebar-move-profile-${p.pieceId}`}>
+                    ⟶ {getMoveProfileLabel(p.pieceId)}
+                  </div>
                   <div className="sidebar-hp">{p.hp} / {p.maxHp} HP</div>
+                  {isPowerSquare(p.coord) && (
+                    <div className="sidebar-power-badge" id={`sidebar-power-badge-${p.pieceId}`}>
+                      ⚡ Power Square (+{POWER_REGEN} HP/turn)
+                    </div>
+                  )}
                   {(p as BoardPieceState).imprisoned ? (
                     <div className="sidebar-imprisoned-status" id="sidebar-imprisoned-status">
                       🔒 Imprisoned — {(p as BoardPieceState).imprisonedTurnsRemaining ?? IMPRISONMENT_TURNS} turn(s) remaining
@@ -296,6 +462,19 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
             <div key={i} className="board-log-entry">{entry}</div>
           ))}
         </div>
+      )}
+
+      {/* 1.1: Game-over modal overlay */}
+      {board.phase === 'gameover' && gameOverMeta && (
+        <GameOverModal
+          winner={gameOverMeta.winnerFaction}
+          reason={gameOverMeta.reason}
+          onPlayAgain={() => {
+            setBoardLog([]);
+            setJustCuredId(null);
+            setBoard(makeInitialBoardState());
+          }}
+        />
       )}
     </div>
   );
@@ -355,6 +534,51 @@ function DefeatedToken({ piece, pack }: TokenProps) {
         ? <img src={defeatedUrl} alt={`${piece.name} (defeated)`} className="piece-token-img piece-token-img--defeated" />
         : <span className="piece-token-fallback piece-token-fallback--dead">☠</span>
       }
+    </div>
+  );
+}
+
+// ─── 1.1: Game Over Modal ──────────────────────────────────────────────────────
+
+interface GameOverModalProps {
+  winner: 'light' | 'dark';
+  reason: 'all_enemies_eliminated' | 'faction_annihilated' | 'power_squares_controlled';
+  onPlayAgain: () => void;
+}
+
+function GameOverModal({ winner, reason, onPlayAgain }: GameOverModalProps) {
+  const isLight = winner === 'light';
+  const title   = isLight ? '✦ Light Victorious' : '🌑 Dark Triumphant';
+  const sub     = reason === 'power_squares_controlled'
+    ? '⚡ All 5 power squares controlled — strategic dominance achieved!'
+    : reason === 'faction_annihilated'
+    ? 'All enemy forces have been annihilated.'
+    : 'All enemies have been eliminated.';
+
+  return (
+    <div
+      className={`gameover-overlay gameover-overlay--${winner}`}
+      id="gameover-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${winner === 'light' ? 'Light' : 'Dark'} wins`}
+    >
+      <div className={`gameover-card gameover-card--${winner}`} id="gameover-card">
+        <div className="gameover-emblem" aria-hidden="true">
+          {isLight ? '☀' : '🌑'}
+        </div>
+        <h2 className="gameover-title" id="gameover-title">{title}</h2>
+        <p  className="gameover-sub">{sub}</p>
+        <div className="gameover-divider" />
+        <button
+          id="btn-play-again"
+          className="gameover-play-again"
+          onClick={onPlayAgain}
+          autoFocus
+        >
+          ↺ Play Again
+        </button>
+      </div>
     </div>
   );
 }
