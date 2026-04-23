@@ -1,12 +1,19 @@
 # Archon Project — GPT Sync Document
-**Last Updated:** 2026-04-23  
-**Synced by:** Antigravity  
-**For:** Headless Studios GPT (ChatGPT)
+**Last Updated:** 2026-04-23 | Milestone 2.1  
+**Completion:** ~65% of full roadmap  
+**Next Objective:** Milestone 2.2 — Difficulty Selector (Easy / Normal / Hard AI)
+
+---
+
+## Standing Sync Workflow
+- **`GPT-SYNC.md`** is the canonical cross-system sync artifact. It lives in repo root and is committed after every milestone.
+- After each milestone Antigravity outputs a `CHATGPT SYNC BLOCK` (≤15 lines) for manual paste into ChatGPT.
+- No browser automation into ChatGPT. No multi-system orchestration unless explicitly instructed.
 
 ---
 
 ## How to use this file
-Paste the contents of this file into ChatGPT → Headless Studios at the start of any new session to instantly restore full project context. Antigravity will keep this file up to date after every milestone.
+Paste into ChatGPT → Headless Studios at the start of any new session to restore full project context instantly.
 
 ---
 
