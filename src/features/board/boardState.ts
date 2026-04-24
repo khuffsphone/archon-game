@@ -1007,9 +1007,12 @@ export function applyCombatResult(
       const oldCoord = newPieces[att.pieceId]?.coord;
       if (oldCoord) newSquares[oldCoord.row][oldCoord.col].pieceId = null;
       newSquares[row][col].pieceId = att.pieceId;
-      // Apply imprisoned flag only to surviving attacker if marked
+      // Apply imprisoned flag only to surviving attacker if marked.
+      // Clamp hp to maxHp: arena regen could in theory push hp above maxHp
+      // if the result isn't already clamped; this is the authoritative cap.
       newPieces[att.pieceId] = {
         ...att,
+        hp: Math.min(att.hp, att.maxHp),
         coord: { row, col },
         ...(ext.survivingAttackerImprisoned
           ? { imprisoned: true, imprisonedTurnsRemaining: IMPRISONMENT_TURNS }
@@ -1025,7 +1028,7 @@ export function applyCombatResult(
       if (deadDefId) newPieces[deadDefId] = { ...newPieces[deadDefId], isDead: true, hp: 0 };
     }
   } else if (result.outcome === 'defender_wins') {
-    // Attacker repelled — apply imprisoned to surviving defender if marked
+    // Attacker repelled — mark attacker dead
     if (result.survivingAttacker === null) {
       const deadAttId = state.selectedPieceId ?? Object.keys(newPieces).find(id => {
         const p = newPieces[id];
@@ -1033,16 +1036,18 @@ export function applyCombatResult(
       });
       if (deadAttId) newPieces[deadAttId] = { ...newPieces[deadAttId], isDead: true, hp: 0 };
     }
-    // Surviving defender: apply imprisoned if marked
+    // Surviving defender: carry HP back from arena result, then apply imprisoned if marked.
+    // The defender's hp in result.survivingDefender reflects post-arena HP (e.g. after Troll Regen).
     if (result.survivingDefender !== null) {
       const def = result.survivingDefender;
-      if (ext.survivingDefenderImprisoned) {
-        newPieces[def.pieceId] = {
-          ...newPieces[def.pieceId],
-          imprisoned: true,
-          imprisonedTurnsRemaining: IMPRISONMENT_TURNS,
-        };
-      }
+      const existing = newPieces[def.pieceId];
+      newPieces[def.pieceId] = {
+        ...existing,
+        hp: Math.min(def.hp, existing?.maxHp ?? def.maxHp),
+        ...(ext.survivingDefenderImprisoned
+          ? { imprisoned: true, imprisonedTurnsRemaining: IMPRISONMENT_TURNS }
+          : {}),
+      };
     }
   }
 
