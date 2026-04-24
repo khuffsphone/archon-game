@@ -10,6 +10,12 @@ import {
   ENTITY_W, ENTITY_H, ROLE_STATS, ARENA_BOUNDS, CANVAS_W,
 } from './arenaConfig';
 
+// ─── Ability constants ────────────────────────────────────────────────────────
+
+/** Troll passive regen rate in HP per second */
+export const TROLL_REGEN_HP_PER_SEC = 1.0;
+
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ArenaSide = 'player' | 'enemy';
@@ -21,7 +27,7 @@ export interface HitEffect {
   y: number;
   faction: 'light' | 'dark';
   timeRemaining: number; // ms
-  type: 'hit' | 'death' | 'rebirth';
+  type: 'hit' | 'death' | 'rebirth' | 'regen';
 }
 
 export interface Projectile {
@@ -74,6 +80,10 @@ export interface ArenaEntity {
   // Ability: Phoenix Rebirth
   rebirthAvailable: boolean;  // true for Phoenix, false for all others
 
+  // Ability: Troll Regen
+  regenRate: number;        // HP/s to regenerate (0 for non-Troll)
+  regenAccumulator: number; // fractional HP accumulation between ticks
+
   // Visual
   sprite: HTMLImageElement | null;
   spriteLoaded: boolean;
@@ -96,6 +106,9 @@ export interface HudSnapshot {
   /** Rebirth badge for the player's piece. 'none' = unit cannot rebirth. */
   playerRebirthStatus: 'ready' | 'used' | 'none';
   enemyRebirthStatus:  'ready' | 'used' | 'none';
+  /** True when the unit is a Troll with regen active and hp > 0 */
+  playerRegenActive: boolean;
+  enemyRegenActive:  boolean;
 }
 
 // ─── Stat Mapper ─────────────────────────────────────────────────────────────
@@ -160,6 +173,10 @@ export function boardPieceToEntity(
 
     // Phoenix Rebirth — only the phoenix gets this
     rebirthAvailable: piece.role === 'herald' && piece.pieceId.toLowerCase().includes('phoenix'),
+
+    // Troll Regen — only the troll gets this
+    regenRate:        piece.pieceId.toLowerCase().includes('troll') ? TROLL_REGEN_HP_PER_SEC : 0,
+    regenAccumulator: 0,
 
     sprite,
     spriteLoaded,

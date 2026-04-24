@@ -54,6 +54,9 @@ const PHOENIX_REBIRTH_INVULN_MS = 1_200;
 /** Duration of the rebirth flash effect (ms) */
 const PHOENIX_REBIRTH_FLASH_MS  = 900;
 
+/** Duration of the regen particle effect (ms) */
+const TROLL_REGEN_FX_MS = 600;
+
 let _projIdCounter = 0;
 
 // ─── Game Loop ────────────────────────────────────────────────────────────────
@@ -163,6 +166,10 @@ export class GameLoop {
     moveEntity(this.enemy, dt);
 
     this._tickProjectiles(dt);
+
+    // Troll Regen — tick after all combat, before effect cleanup
+    this._tickRegen(this.player, dt);
+    this._tickRegen(this.enemy,  dt);
 
     for (const fx of this.effects) fx.timeRemaining -= dt;
     this.effects = this.effects.filter(fx => fx.timeRemaining > 0);
@@ -308,7 +315,32 @@ export class GameLoop {
     if (target.hp <= 0) this._endFight(target.side === 'player' ? 'enemy-wins' : 'player-wins');
   }
 
-  // ─── Win condition ────────────────────────────────────────────────────────
+  // ─── Troll Regen ────────────────────────────────────────────────────────────────
+
+  private _tickRegen(entity: ArenaEntity, dt: number): void {
+    if (entity.regenRate <= 0) return;      // not a Troll
+    if (entity.hp <= 0)        return;      // already defeated
+    if (entity.hp >= entity.maxHp) return;  // already full
+
+    entity.regenAccumulator += entity.regenRate * (dt / 1000);
+
+    if (entity.regenAccumulator >= 1) {
+      const healed = Math.floor(entity.regenAccumulator);
+      entity.regenAccumulator -= healed;
+      entity.hp = Math.min(entity.maxHp, entity.hp + healed);
+
+      // Floating green "+" particle
+      this.effects.push({
+        x: entity.x,
+        y: entity.y - entity.height * 0.7,
+        faction: entity.faction,
+        timeRemaining: TROLL_REGEN_FX_MS,
+        type: 'regen',
+      });
+    }
+  }
+
+  // ─── Win condition ───────────────────────────────────────────────────────────
 
   private _endFight(reason: 'player-wins' | 'enemy-wins' | 'timeout'): void {
     if (this.phase === 'result') return;
@@ -343,6 +375,9 @@ export class GameLoop {
       : e.rebirthAvailable ? 'ready'
       : 'none';
 
+    const regenActive = (e: ArenaEntity): boolean =>
+      e.regenRate > 0 && e.hp > 0 && e.hp < e.maxHp;
+
     this.hudCb?.({
       playerHp:        this.player.hp,
       playerMaxHp:     this.player.maxHp,
@@ -357,6 +392,8 @@ export class GameLoop {
       difficulty:      this.difficulty,
       playerRebirthStatus: rebirthStatus(this.player),
       enemyRebirthStatus:  rebirthStatus(this.enemy),
+      playerRegenActive:   regenActive(this.player),
+      enemyRegenActive:    regenActive(this.enemy),
     });
   }
 }

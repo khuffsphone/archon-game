@@ -38,6 +38,8 @@ function makeEntity(overrides: Partial<ArenaEntity> = {}): ArenaEntity {
     isRanged: false,
     invulnTimer: 0,
     rebirthAvailable: false,
+    regenRate: 0,
+    regenAccumulator: 0,
     sprite: null,
     spriteLoaded: false,
     ...overrides,

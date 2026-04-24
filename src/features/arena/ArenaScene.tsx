@@ -200,10 +200,21 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
           </div>
 
           {/* Enemy HP (right) */}
-          <HpBar
-            hp={hud.enemyHp} maxHp={hud.enemyMaxHp}
-            faction="dark" name={hud.enemyName} side="right"
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+            <HpBar
+              hp={hud.enemyHp} maxHp={hud.enemyMaxHp}
+              faction="dark" name={hud.enemyName} side="right"
+            />
+            {hud.enemyRegenActive && (
+              <div
+                className="arena-regen-badge"
+                id="arena-regen-badge-enemy"
+                title="Troll Regen: regenerating HP"
+              >
+                ♻ Regenerating
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -925,3 +925,21 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   0%, 100% { box-shadow: 0 0 6px hsl(35,80%,40%,0.2); }
   50%       { box-shadow: 0 0 16px hsl(35,90%,55%,0.6); }
 }
+
+/* ── Troll Regen Badge (Arena HUD) ────────────────────────────── */
+.arena-regen-badge {
+  font: 600 10px 'Inter', sans-serif;
+  letter-spacing: 0.08em;
+  padding: 2px 9px;
+  border-radius: 9px;
+  border: 1px solid hsl(140, 55%, 28%);
+  background: hsl(140, 45%, 8%);
+  color: hsl(140, 80%, 55%);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: regen-pulse 1.6s ease-in-out infinite;
+}
+@keyframes regen-pulse {
+  0%, 100% { box-shadow: 0 0 4px hsl(140,70%,35%,0.2); opacity: 0.9; }
+  50%       { box-shadow: 0 0 12px hsl(140,80%,50%,0.5); opacity: 1.0; }
+}

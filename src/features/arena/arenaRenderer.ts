@@ -7,6 +7,10 @@
 import type { ArenaEntity, HitEffect, Projectile } from './entities';
 import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H } from './arenaConfig';
 
+// Effect durations (kept local to avoid circular imports)
+const REBIRTH_FX_MS = 900;
+const REGEN_FX_MS   = 600;
+
 // ─── Preloaded arena backgrounds ─────────────────────────────────────────────
 
 const bgCache = new Map<string, HTMLImageElement>();
@@ -146,7 +150,7 @@ export function drawHitEffects(
 
     if (fx.type === 'rebirth') {
       // Expanding golden ring + phoenix emoji
-      const progress = 1 - fx.timeRemaining / 900; // 0→1 as effect plays
+      const progress = 1 - fx.timeRemaining / REBIRTH_FX_MS; // 0→1 as effect plays
       const radius   = 30 + progress * 140;
       const alpha    = Math.max(0, 1 - progress * 1.1);
       ctx.globalAlpha = alpha;
@@ -173,6 +177,18 @@ export function drawHitEffects(
       ctx.shadowBlur   = 30;
       ctx.shadowColor  = '#ffaa00';
       ctx.fillText('🔥', fx.x, fx.y - 20 - progress * 30);
+    } else if (fx.type === 'regen') {
+      // Floating green "+1" that rises and fades
+      const progress = 1 - fx.timeRemaining / REGEN_FX_MS;
+      const alpha    = Math.max(0, 1 - progress * 1.2);
+      const yOffset  = progress * 40;
+      ctx.globalAlpha = alpha;
+      ctx.font        = 'bold 22px sans-serif';
+      ctx.textAlign   = 'center';
+      ctx.fillStyle   = '#44ff88';
+      ctx.shadowBlur  = 14;
+      ctx.shadowColor = '#00cc44';
+      ctx.fillText('+1', fx.x, fx.y - yOffset);
     } else {
       // Standard hit / death effect
       const alpha = Math.min(1, fx.timeRemaining / 120);
