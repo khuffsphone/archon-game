@@ -33,20 +33,24 @@ interface Props {
   boardState: BoardState;
   onBoardStateChange: (next: BoardState) => void;
   onLaunchCombat: (payload: CombatLaunchPayload, callbacks: CombatBridgeCallbacks) => void;
+  /** 2.7: Board log lifted to App for persistence */
+  boardLog: string[];
+  onBoardLogChange: (next: string[]) => void;
+  /** 2.7: Called when player resets/clears save; parent handles clearSave() */
+  onResetGame: () => void;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
     console.warn('[BoardScene] Missing assets for alpha roster:', assetCheck.missing);
   }
 
-  // ── 1.0: Local board event log ─────────────────────────────────────────────
-  const [boardLog, setBoardLog] = useState<string[]>([]);
+  // ── 1.0: Board event log (lifted to App.tsx in 2.7) ───────────────────────────
   const appendLog = useCallback((entry: string) => {
-    setBoardLog(prev => [...prev.slice(-99), entry]);
-  }, []);
+    onBoardLogChange([...boardLog.slice(-99), entry]);
+  }, [boardLog, onBoardLogChange]);
 
   // ── 1.8: Audio state ────────────────────────────────────────────────────────
   const [audioMuted, setAudioMuted] = useState<boolean>(isMuted());
@@ -316,6 +320,18 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           >
             {audioMuted ? '🔇' : '🔊'}
           </button>
+          {/* 2.7: Reset / New Game button — always visible, clears save */}
+          <button
+            id="btn-reset-game"
+            className="btn-reset-game"
+            title="Start a new game and clear save"
+            onClick={() => {
+              if (!window.confirm('Start a new game? Your current progress will be lost.')) return;
+              onResetGame();
+            }}
+          >
+            ↺ Reset
+          </button>
           {board.phase === 'gameover' && (
             <button
               id="btn-board-reset"
@@ -470,9 +486,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           winner={gameOverMeta.winnerFaction}
           reason={gameOverMeta.reason}
           onPlayAgain={() => {
-            setBoardLog([]);
-            setJustCuredId(null);
-            setBoard(makeInitialBoardState());
+            onResetGame();
           }}
         />
       )}

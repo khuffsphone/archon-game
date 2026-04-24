@@ -18,6 +18,9 @@ import {
   makeGameOverSetup,
   makeDarkWinsSetup,
 } from './features/board/boardState';
+import {
+  saveGame, loadGame, clearSave, hasSavedGame,
+} from './features/board/boardSave';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -63,11 +66,46 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AppMode>(getInitialMode);
 
+  // ── 2.7: Save / Resume ────────────────────────────────────────────────────
+  // Board log is owned here so it can be persisted alongside boardState.
+  const [boardLog, setBoardLog] = useState<string[]>(() => {
+    // Restore log from save on first load (if no ?setup= override)
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('setup')) {
+      const save = loadGame();
+      if (save) return save.boardLog;
+    }
+    return [];
+  });
+
+  // Whether a valid save exists (drives Continue Game button)
+  const [hasSave, setHasSave] = useState<boolean>(() => hasSavedGame());
+
   // ── Board state lifted to App so it survives mode switches ────────────────
-  // BoardScene is a controlled component — App owns boardState, BoardScene renders
-  // it and fires onBoardStateChange. Switching to Combat mode no longer unmounts
-  // and resets the board because BoardScene simply isn't rendered (not destroyed).
-  const [boardState, setBoardState] = useState<BoardState>(getInitialBoardState);
+  const [boardState, setBoardStateRaw] = useState<BoardState>(() => {
+    // 2.7: Restore from save on reload (if no ?setup= override)
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('setup')) {
+      const save = loadGame();
+      if (save) return save.boardState;
+    }
+    return getInitialBoardState();
+  });
+
+  // Wrapped setter: auto-saves after every meaningful state change
+  const setBoardState = useCallback((next: BoardState) => {
+    setBoardStateRaw(next);
+    // We don't have boardLog in scope here — save is triggered by the effect below
+  }, []);
+
+  // Auto-save effect: runs whenever boardState or boardLog changes
+  useEffect(() => {
+    // Don't save QA setups (?setup= param)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('setup')) return;
+    saveGame(boardState, boardLog);
+    setHasSave(true);
+  }, [boardState, boardLog]);
 
   // Combat launch state (when board triggers a combat)
   const [combatPayload, setCombatPayload] = useState<CombatLaunchPayload | null>(null);
@@ -124,8 +162,16 @@ export default function App() {
   if (mode === 'title') {
     return (
       <TitleScreen
-        onStart={() => {
-          setBoardState(getInitialBoardState());
+        hasSave={hasSave}
+        onNewGame={() => {
+          clearSave();
+          setHasSave(false);
+          setBoardLog([]);
+          setBoardStateRaw(getInitialBoardState());
+          setMode('board');
+        }}
+        onContinue={() => {
+          // boardState and boardLog already restored from save in useState init
           setMode('board');
         }}
       />
@@ -185,6 +231,14 @@ export default function App() {
           boardState={boardState}
           onBoardStateChange={setBoardState}
           onLaunchCombat={handleLaunchCombat}
+          boardLog={boardLog}
+          onBoardLogChange={setBoardLog}
+          onResetGame={() => {
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setBoardStateRaw(makeInitialBoardState());
+          }}
         />
       </div>
     );

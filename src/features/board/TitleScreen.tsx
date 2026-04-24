@@ -1,15 +1,17 @@
 /**
- * TitleScreen.tsx — Archon 2.2
+ * TitleScreen.tsx — Archon 2.7
  *
- * Added: Difficulty selector (Easy / Normal) above the New Game button.
- * Persists selected difficulty to sessionStorage via difficultyConfig.
+ * Added: Continue Game button (hasSave prop) + onNewGame / onContinue callbacks.
+ * Difficulty selector remains; keyboard shortcuts remain.
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import type { Difficulty } from '../arena/difficultyConfig';
 import { persistDifficulty, getDifficulty } from '../arena/difficultyConfig';
 
 interface Props {
-  onStart: () => void;
+  hasSave:     boolean;
+  onNewGame:   () => void;
+  onContinue:  () => void;
 }
 
 const RULES = [
@@ -45,7 +47,7 @@ const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [
   { value: 'normal', label: 'Normal', desc: 'Full arena AI (2.1 behaviour)' },
 ];
 
-export function TitleScreen({ onStart }: Props) {
+export function TitleScreen({ hasSave, onNewGame, onContinue }: Props) {
   const [exiting, setExiting]       = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>(getDifficulty);
 
@@ -54,20 +56,27 @@ export function TitleScreen({ onStart }: Props) {
     persistDifficulty(d);
   };
 
-  const handleStart = useCallback(() => {
+  const handleNewGame = useCallback(() => {
     if (exiting) return;
     setExiting(true);
-    setTimeout(onStart, 600);
-  }, [exiting, onStart]);
+    setTimeout(onNewGame, 600);
+  }, [exiting, onNewGame]);
 
-  // Keyboard shortcut: Enter or Space → New Game
+  const handleContinue = useCallback(() => {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(onContinue, 600);
+  }, [exiting, onContinue]);
+
+  // Keyboard: Enter / Space → New Game; C → Continue (if save exists)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStart(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNewGame(); }
+      if ((e.key === 'c' || e.key === 'C') && hasSave) { e.preventDefault(); handleContinue(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleStart]);
+  }, [handleNewGame, handleContinue, hasSave]);
 
   return (
     <div className={`title-screen ${exiting ? 'title-screen--exit' : ''}`} id="title-screen">
@@ -119,16 +128,30 @@ export function TitleScreen({ onStart }: Props) {
           </span>
         </div>
 
-        {/* CTA */}
-        <button
-          id="btn-new-game"
-          className="title-cta"
-          onClick={handleStart}
-          autoFocus
-        >
-          <span className="title-cta__text">⚔ New Game</span>
-          <span className="title-cta__hint">Press Enter or Space</span>
-        </button>
+        {/* CTA block */}
+        <div className="title-cta-block">
+          {/* 2.7: Continue Game — only shown when a valid save exists */}
+          {hasSave && (
+            <button
+              id="btn-continue-game"
+              className="title-cta title-cta--continue"
+              onClick={handleContinue}
+            >
+              <span className="title-cta__text">↩ Continue Game</span>
+              <span className="title-cta__hint">Press C</span>
+            </button>
+          )}
+
+          <button
+            id="btn-new-game"
+            className="title-cta title-cta--new"
+            onClick={handleNewGame}
+            autoFocus={!hasSave}
+          >
+            <span className="title-cta__text">⚔ New Game</span>
+            <span className="title-cta__hint">Press Enter or Space</span>
+          </button>
+        </div>
 
         {/* Rules */}
         <section className="title-rules" aria-label="Game rules summary">
@@ -147,7 +170,7 @@ export function TitleScreen({ onStart }: Props) {
         </section>
 
         <footer className="title-footer">
-          <span>Archon v2.2 · Headless Studios</span>
+          <span>Archon v2.7 · Headless Studios</span>
         </footer>
       </div>
     </div>
