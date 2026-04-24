@@ -5,11 +5,13 @@
  * Called once per rAF tick by the game loop.
  */
 import type { ArenaEntity, HitEffect, Projectile } from './entities';
+import { BANSHEE_WAIL_RADIUS } from './entities';
 import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H } from './arenaConfig';
 
 // Effect durations (kept local to avoid circular imports)
 const REBIRTH_FX_MS = 900;
 const REGEN_FX_MS   = 600;
+const WAIL_FX_MS    = 800;
 
 // ─── Preloaded arena backgrounds ─────────────────────────────────────────────
 
@@ -189,6 +191,38 @@ export function drawHitEffects(
       ctx.shadowBlur  = 14;
       ctx.shadowColor = '#00cc44';
       ctx.fillText('+1', fx.x, fx.y - yOffset);
+    } else if (fx.type === 'wail') {
+      // Purple/white expanding dual ring
+      const progress = 1 - fx.timeRemaining / WAIL_FX_MS; // 0→1
+      const outerR   = BANSHEE_WAIL_RADIUS * progress;    // expands to full wail radius
+      const innerR   = outerR * 0.5;
+      const alpha    = Math.max(0, 1 - progress * 1.15);
+
+      ctx.globalAlpha = alpha;
+      // Outer ring — purple
+      ctx.strokeStyle = '#cc44ff';
+      ctx.shadowBlur  = 36;
+      ctx.shadowColor = '#9900cc';
+      ctx.lineWidth   = 4 * (1 - progress * 0.8);
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, Math.max(1, outerR), 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner ring — white
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 2 * (1 - progress * 0.8);
+      ctx.shadowBlur  = 16;
+      ctx.shadowColor = '#cc88ff';
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, Math.max(1, innerR), 0, Math.PI * 2);
+      ctx.stroke();
+      // Ghost emoji floats up
+      const emojiAlpha = progress < 0.4 ? 1 : Math.max(0, 1 - (progress - 0.4) / 0.6);
+      ctx.globalAlpha = emojiAlpha;
+      ctx.font        = 'bold 40px sans-serif';
+      ctx.textAlign   = 'center';
+      ctx.shadowBlur  = 20;
+      ctx.shadowColor = '#9900cc';
+      ctx.fillText('👻', fx.x, fx.y - 10 - progress * 30);
     } else {
       // Standard hit / death effect
       const alpha = Math.min(1, fx.timeRemaining / 120);

@@ -943,3 +943,34 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   0%, 100% { box-shadow: 0 0 4px hsl(140,70%,35%,0.2); opacity: 0.9; }
   50%       { box-shadow: 0 0 12px hsl(140,80%,50%,0.5); opacity: 1.0; }
 }
+
+/* ── Banshee Wail Badge (Arena HUD) ────────────────────────────── */
+.arena-wail-badge {
+  font: 600 10px 'Inter', sans-serif;
+  letter-spacing: 0.08em;
+  padding: 2px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.4);
+  color: var(--text-muted, #aaa);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: all 0.3s;
+}
+.arena-wail-badge--ready {
+  color: hsl(280, 90%, 75%);
+  border-color: hsl(280, 55%, 40%);
+  background: hsl(280, 50%, 10%);
+  box-shadow: 0 0 8px hsl(280,80%,50%,0.3);
+  animation: wail-pulse 1.8s ease-in-out infinite;
+}
+.arena-wail-badge--cooldown {
+  color: hsl(280, 20%, 40%);
+  border-color: hsl(280, 15%, 22%);
+  background: transparent;
+  opacity: 0.55;
+}
+@keyframes wail-pulse {
+  0%, 100% { box-shadow: 0 0 6px hsl(280,75%,45%,0.2); }
+  50%       { box-shadow: 0 0 18px hsl(280,90%,65%,0.6); }
+}

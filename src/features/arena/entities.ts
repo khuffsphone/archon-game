@@ -15,6 +15,12 @@ import {
 /** Troll passive regen rate in HP per second */
 export const TROLL_REGEN_HP_PER_SEC = 1.0;
 
+/** Banshee Wail: range in px, damage per wail, cooldown in ms */
+export const BANSHEE_WAIL_RADIUS      = 220;
+export const BANSHEE_WAIL_DAMAGE      = 1.5;
+export const BANSHEE_WAIL_COOLDOWN_MS = 4_500;
+/** Effect duration for the wail expanding ring */
+export const BANSHEE_WAIL_FX_MS       = 800;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +33,7 @@ export interface HitEffect {
   y: number;
   faction: 'light' | 'dark';
   timeRemaining: number; // ms
-  type: 'hit' | 'death' | 'rebirth' | 'regen';
+  type: 'hit' | 'death' | 'rebirth' | 'regen' | 'wail';
 }
 
 export interface Projectile {
@@ -84,6 +90,12 @@ export interface ArenaEntity {
   regenRate: number;        // HP/s to regenerate (0 for non-Troll)
   regenAccumulator: number; // fractional HP accumulation between ticks
 
+  // Ability: Banshee Wail
+  wailCooldownMs: number;  // max cooldown in ms (0 = not a Banshee)
+  wailTimer: number;       // ms remaining until next wail (0 = ready)
+  wailRadius: number;      // distance threshold for wail to hit (px)
+  wailDamage: number;      // damage per wail trigger
+
   // Visual
   sprite: HTMLImageElement | null;
   spriteLoaded: boolean;
@@ -109,6 +121,9 @@ export interface HudSnapshot {
   /** True when the unit is a Troll with regen active and hp > 0 */
   playerRegenActive: boolean;
   enemyRegenActive:  boolean;
+  /** Wail status for Banshee. 'none' = not a Banshee. */
+  playerWailStatus: 'ready' | 'cooldown' | 'none';
+  enemyWailStatus:  'ready' | 'cooldown' | 'none';
 }
 
 // ─── Stat Mapper ─────────────────────────────────────────────────────────────
@@ -177,6 +192,12 @@ export function boardPieceToEntity(
     // Troll Regen — only the troll gets this
     regenRate:        piece.pieceId.toLowerCase().includes('troll') ? TROLL_REGEN_HP_PER_SEC : 0,
     regenAccumulator: 0,
+
+    // Banshee Wail — only the banshee gets this
+    wailCooldownMs: piece.pieceId.toLowerCase().includes('banshee') ? BANSHEE_WAIL_COOLDOWN_MS : 0,
+    wailTimer:      0, // starts ready
+    wailRadius:     piece.pieceId.toLowerCase().includes('banshee') ? BANSHEE_WAIL_RADIUS : 0,
+    wailDamage:     piece.pieceId.toLowerCase().includes('banshee') ? BANSHEE_WAIL_DAMAGE : 0,
 
     sprite,
     spriteLoaded,

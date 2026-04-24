@@ -5,6 +5,7 @@
  * AIProfile to tickAI every frame. All other behaviour is unchanged from 2.1.
  */
 import type { ArenaEntity, HitEffect, HudSnapshot, Projectile } from './entities';
+import { BANSHEE_WAIL_FX_MS } from './entities';
 import type { AIController } from './arenaAI';
 import { createAIController, tickAI } from './arenaAI';
 import { moveEntity, moveProjectile, checkMeleeHit, checkProjectileHit, directionTo } from './arenaPhysics';
@@ -170,6 +171,10 @@ export class GameLoop {
     // Troll Regen — tick after all combat, before effect cleanup
     this._tickRegen(this.player, dt);
     this._tickRegen(this.enemy,  dt);
+
+    // Banshee Wail — auto-fires when ready and target is in range
+    this._tickWail(this.player, this.enemy, dt);
+    this._tickWail(this.enemy,  this.player, dt);
 
     for (const fx of this.effects) fx.timeRemaining -= dt;
     this.effects = this.effects.filter(fx => fx.timeRemaining > 0);
@@ -340,6 +345,41 @@ export class GameLoop {
     }
   }
 
+  // ─── Banshee Wail ─────────────────────────────────────────────────────────────
+
+  private _tickWail(caster: ArenaEntity, target: ArenaEntity, dt: number): void {
+    if (caster.wailCooldownMs <= 0) return; // not a Banshee
+    if (caster.hp <= 0)             return; // defeated
+    if (this.phase !== 'fighting')  return; // countdown or result
+
+    if (caster.wailTimer > 0) { caster.wailTimer = Math.max(0, caster.wailTimer - dt); return; }
+
+    // Timer is 0 — check range
+    const dist = Math.hypot(caster.x - target.x, caster.y - target.y);
+    if (dist > caster.wailRadius) return; // not close enough yet; keep waiting
+
+    // ── Fire! ──────────────────────────────────────────────
+    caster.wailTimer = caster.wailCooldownMs; // reset cooldown
+
+    // Expanding ring VFX on the caster
+    this.effects.push({
+      x: caster.x,
+      y: caster.y - caster.height * 0.5,
+      faction: caster.faction,
+      timeRemaining: BANSHEE_WAIL_FX_MS,
+      type: 'wail',
+    });
+
+    window.dispatchEvent(new CustomEvent('arena:sfx', {
+      detail: { id: 'sfx-magic-release' },
+    }));
+
+    // Apply damage to target (skips if target has invuln; handles Phoenix Rebirth)
+    if (target.invulnTimer <= 0) {
+      this._applyDamage({ attackDamage: caster.wailDamage, faction: caster.faction }, target);
+    }
+  }
+
   // ─── Win condition ───────────────────────────────────────────────────────────
 
   private _endFight(reason: 'player-wins' | 'enemy-wins' | 'timeout'): void {
@@ -378,6 +418,11 @@ export class GameLoop {
     const regenActive = (e: ArenaEntity): boolean =>
       e.regenRate > 0 && e.hp > 0 && e.hp < e.maxHp;
 
+    const wailStatus = (e: ArenaEntity): 'ready' | 'cooldown' | 'none' =>
+      e.wailCooldownMs <= 0 || e.hp <= 0 ? 'none'
+      : e.wailTimer <= 0 ? 'ready'
+      : 'cooldown';
+
     this.hudCb?.({
       playerHp:        this.player.hp,
       playerMaxHp:     this.player.maxHp,
@@ -394,6 +439,8 @@ export class GameLoop {
       enemyRebirthStatus:  rebirthStatus(this.enemy),
       playerRegenActive:   regenActive(this.player),
       enemyRegenActive:    regenActive(this.enemy),
+      playerWailStatus:    wailStatus(this.player),
+      enemyWailStatus:     wailStatus(this.enemy),
     });
   }
 }

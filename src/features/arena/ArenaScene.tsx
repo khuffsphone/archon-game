@@ -179,6 +179,15 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
                 🔥 {hud.playerRebirthStatus === 'ready' ? 'Rebirth Ready' : 'Rebirth Used'}
               </div>
             )}
+            {hud.playerWailStatus !== 'none' && (
+              <div
+                className={`arena-wail-badge arena-wail-badge--${hud.playerWailStatus}`}
+                id="arena-wail-badge-player"
+                title={hud.playerWailStatus === 'ready' ? 'Banshee Wail: Ready' : 'Banshee Wail: Cooldown'}
+              >
+                👻 {hud.playerWailStatus === 'ready' ? 'Wail Ready' : 'Wail Cooldown'}
+              </div>
+            )}
           </div>
 
           {/* Center: timer + VS + difficulty badge */}
@@ -212,6 +221,15 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
                 title="Troll Regen: regenerating HP"
               >
                 ♻ Regenerating
+              </div>
+            )}
+            {hud.enemyWailStatus !== 'none' && (
+              <div
+                className={`arena-wail-badge arena-wail-badge--${hud.enemyWailStatus}`}
+                id="arena-wail-badge-enemy"
+                title={hud.enemyWailStatus === 'ready' ? 'Banshee Wail: Ready' : 'Banshee Wail: Cooldown'}
+              >
+                👻 {hud.enemyWailStatus === 'ready' ? 'Wail Ready' : 'Wail Cooldown'}
               </div>
             )}
           </div>
