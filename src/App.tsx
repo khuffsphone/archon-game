@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { CombatBridge } from './features/combat/CombatBridge';
 import { BoardScene } from './features/board/BoardScene';
 import { TitleScreen } from './features/board/TitleScreen';
+import { CampaignMap } from './features/board/CampaignMap';
 import { ArenaScene } from './features/arena/ArenaScene';
 import { CombatPackManifest } from './lib/types';
 import { validatePack } from './lib/packLoader';
@@ -21,6 +22,7 @@ import {
 import {
   saveGame, loadGame, clearSave, hasSavedGame,
 } from './features/board/boardSave';
+import type { EncounterNode } from './features/board/campaignConfig';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -32,8 +34,9 @@ const REQUIRED_IDS = [
   'sfx-melee-hit',
 ];
 
-// App mode: 'title' is the entry splash, 'board' is the main game, 'combat' preserves standalone
-type AppMode = 'title' | 'board' | 'combat';
+// App mode: 'title' is the entry splash, 'campaign' is encounter selection,
+// 'board' is the main game, 'combat' preserves standalone
+type AppMode = 'title' | 'campaign' | 'board' | 'combat';
 
 /** Feature flag: ?arena=1 routes board combat to the new 2D ArenaScene */
 const USE_ARENA = new URLSearchParams(window.location.search).get('arena') === '1';
@@ -65,6 +68,9 @@ export default function App() {
   const [pack, setPack] = useState<CombatPackManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AppMode>(getInitialMode);
+
+  // 3.0: Selected encounter — carried from CampaignMap to BoardScene
+  const [activeEncounter, setActiveEncounter] = useState<EncounterNode | null>(null);
 
   // ── 2.7: Save / Resume ────────────────────────────────────────────────────
   // Board log is owned here so it can be persisted alongside boardState.
@@ -158,22 +164,40 @@ export default function App() {
 
   if (!pack) return <div className="loading-screen">Loading combat pack…</div>;
 
-  // 1.9: Title screen — shown before the board on fresh load
+  // 1.9 / 3.0: Title screen
   if (mode === 'title') {
     return (
       <TitleScreen
         hasSave={hasSave}
         onNewGame={() => {
+          // 3.0: New Game → Campaign Map (not board directly)
           clearSave();
           setHasSave(false);
           setBoardLog([]);
           setBoardStateRaw(getInitialBoardState());
-          setMode('board');
+          setActiveEncounter(null);
+          setMode('campaign');
         }}
         onContinue={() => {
-          // boardState and boardLog already restored from save in useState init
+          // Continue Game bypasses campaign map — goes straight to board
           setMode('board');
         }}
+      />
+    );
+  }
+
+  // 3.0: Campaign Map — encounter selection
+  if (mode === 'campaign') {
+    return (
+      <CampaignMap
+        onLaunch={(enc) => {
+          setActiveEncounter(enc);
+          // For skirmish, board state is already initial (v1: same roster)
+          setBoardStateRaw(getInitialBoardState());
+          setBoardLog([`⚔ Encounter: ${enc.title}`]);
+          setMode('board');
+        }}
+        onBack={() => setMode('title')}
       />
     );
   }
@@ -233,10 +257,12 @@ export default function App() {
           onLaunchCombat={handleLaunchCombat}
           boardLog={boardLog}
           onBoardLogChange={setBoardLog}
+          activeEncounter={activeEncounter}
           onResetGame={() => {
             clearSave();
             setHasSave(false);
             setBoardLog([]);
+            setActiveEncounter(null);
             setBoardStateRaw(makeInitialBoardState());
           }}
         />

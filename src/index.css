@@ -206,7 +206,182 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   min-height: 16px;
 }
 
-/* ── Arena Difficulty Badge (HUD) ────────────────────────────── */
+/* ── 3.0 Campaign Map ──────────────────────────────────────────── */
+
+.campaign-map {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 30%, hsl(220,25%,10%) 0%, hsl(220,20%,5%) 100%);
+  animation: campaign-fade-in 0.45s ease both;
+  overflow-y: auto;
+}
+.campaign-map--exit { animation: campaign-fade-out 0.35s ease both; }
+@keyframes campaign-fade-in  { from { opacity: 0; transform: translateY(12px); } to   { opacity: 1; transform: translateY(0); } }
+@keyframes campaign-fade-out { from { opacity: 1; transform: translateY(0);    } to   { opacity: 0; transform: translateY(-10px); } }
+
+/* Ambient background orbs */
+.campaign-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.campaign-bg__orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.12; animation: campaign-orb 14s ease-in-out infinite alternate;
+}
+.campaign-bg__orb--a {
+  width: 500px; height: 500px; top: -120px; left: -100px;
+  background: hsl(200,70%,50%);
+}
+.campaign-bg__orb--b {
+  width: 420px; height: 420px; bottom: -80px; right: -80px;
+  background: hsl(280,65%,55%);
+  animation-delay: -7s;
+}
+@keyframes campaign-orb {
+  from { transform: scale(1)   translate(0,0);      }
+  to   { transform: scale(1.2) translate(30px,20px); }
+}
+
+/* Content wrapper */
+.campaign-content {
+  position: relative; z-index: 1;
+  width: min(680px, 96vw);
+  display: flex; flex-direction: column; gap: 28px;
+  padding: 32px 20px 40px;
+}
+
+/* Header */
+.campaign-header {
+  display: flex; align-items: flex-start; gap: 16px;
+}
+.campaign-back-btn {
+  background: none; border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-muted); font: 500 13px 'Inter', sans-serif;
+  border-radius: 6px; padding: 6px 14px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
+}
+.campaign-back-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text); }
+.campaign-title-block { flex: 1; }
+.campaign-heading {
+  font: 900 28px 'Cinzel', serif;
+  color: var(--text); letter-spacing: 0.06em; margin: 0 0 4px;
+  text-shadow: 0 0 24px rgba(255,200,80,0.15);
+}
+.campaign-subheading { font: 400 13px 'Inter', sans-serif; color: var(--text-muted); margin: 0; }
+
+/* Encounter nodes */
+.campaign-nodes {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.encounter-node {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center; gap: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.09);
+  border-radius: 12px; padding: 16px 20px;
+  cursor: pointer; text-align: left;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+  position: relative;
+}
+.encounter-node:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+}
+/* Selected state */
+.encounter-node--selected {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 24px rgba(250,200,50,0.2);
+}
+
+/* Per-theme selected accent */
+.encounter-node--skirmish.encounter-node--selected {
+  border-color: hsl(185,70%,55%);
+  box-shadow: 0 0 24px hsl(185,70%,40%,0.3);
+}
+.encounter-node--standard.encounter-node--selected {
+  border-color: hsl(43,80%,55%);
+  box-shadow: 0 0 24px hsl(43,80%,45%,0.3);
+}
+.encounter-node--arena-test.encounter-node--selected {
+  border-color: hsl(280,65%,60%);
+  box-shadow: 0 0 24px hsl(280,65%,45%,0.3);
+}
+
+.encounter-node__icon {
+  font-size: 30px; display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+}
+.encounter-node__body { display: flex; flex-direction: column; gap: 3px; }
+.encounter-node__title { font: 700 15px 'Cinzel', serif; color: var(--text); }
+.encounter-node__subtitle { font: 400 12px 'Inter', sans-serif; color: var(--text-muted); }
+.encounter-node__badge {
+  font: 600 10px 'Inter', sans-serif;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 3px 10px; border-radius: 10px;
+  background: rgba(255,255,255,0.07); color: var(--text-muted);
+  border: 1px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+/* Per-theme badge colors */
+.encounter-node--skirmish    .encounter-node__badge { color: hsl(185,70%,60%); border-color: hsl(185,60%,30%,0.6); }
+.encounter-node--standard    .encounter-node__badge { color: hsl(43,80%,60%);  border-color: hsl(43,70%,30%,0.6);  }
+.encounter-node--arena-test  .encounter-node__badge { color: hsl(280,65%,65%); border-color: hsl(280,55%,35%,0.6); }
+
+.encounter-node__check {
+  position: absolute; top: 10px; right: 16px;
+  font-size: 14px; color: var(--accent); font-weight: 700;
+}
+
+/* Footer / launch row */
+.campaign-footer { min-height: 72px; display: flex; align-items: center; justify-content: center; }
+.campaign-launch-row {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center;
+}
+.campaign-launch-label {
+  font: 500 14px 'Inter', sans-serif; color: var(--text-muted);
+}
+.campaign-launch-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: linear-gradient(135deg, hsl(43,90%,20%), hsl(43,90%,14%));
+  border: 1px solid hsl(43,80%,50%);
+  border-radius: 10px; padding: 12px 40px;
+  cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+  animation: cta-pulse 2.2s ease-in-out infinite;
+}
+.campaign-launch-btn:hover, .campaign-launch-btn:focus-visible {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 0 28px hsl(43,90%,50%,0.4); outline: none;
+}
+.campaign-launch-btn__text { font: 700 16px 'Cinzel', serif; color: var(--accent); letter-spacing: 0.08em; }
+.campaign-launch-btn__hint { font: 400 10px 'Inter', sans-serif; color: var(--text-muted); }
+.campaign-select-hint {
+  font: 400 13px 'Inter', sans-serif; color: var(--text-muted); text-align: center;
+}
+.campaign-select-hint kbd {
+  font: 600 12px 'Inter', sans-serif;
+  padding: 1px 6px; background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+}
+
+/* ── Board encounter badge (HUD) ────────────────────────────────── */
+.encounter-badge {
+  font: 600 10px 'Inter', sans-serif;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  padding: 2px 9px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.35);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.encounter-badge--skirmish   { color: hsl(185,70%,62%); border-color: hsl(185,60%,30%,0.5); }
+.encounter-badge--standard   { color: hsl(43,80%,62%);  border-color: hsl(43,70%,30%,0.5);  }
+.encounter-badge--arena-test { color: hsl(280,65%,70%); border-color: hsl(280,55%,35%,0.5); }
+
+/* ═══════════════════════════════════════════════════════════════ */
+
 .arena-difficulty {
   font: 700 10px 'Cinzel', serif;
   letter-spacing: 0.14em;

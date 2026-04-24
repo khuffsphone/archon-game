@@ -26,6 +26,7 @@ import {
   playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
 } from './audioEngine';
 import { getAssetUrl } from '../../lib/packLoader';
+import type { EncounterNode } from './campaignConfig';
 
 interface Props {
   pack: CombatPackManifest;
@@ -38,9 +39,11 @@ interface Props {
   onBoardLogChange: (next: string[]) => void;
   /** 2.7: Called when player resets/clears save; parent handles clearSave() */
   onResetGame: () => void;
+  /** 3.0: Active encounter from CampaignMap (null = Continue Game or QA setup) */
+  activeEncounter?: EncounterNode | null;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
@@ -268,6 +271,16 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         <div className="hud-left">
           <span className="game-title">⚔ Archon</span>
           <span className="board-subtitle">Board Alpha</span>
+          {/* 3.0: Encounter badge */}
+          {activeEncounter && (
+            <span
+              className={`encounter-badge encounter-badge--${activeEncounter.themeClass}`}
+              id="encounter-badge"
+              title={activeEncounter.subtitle}
+            >
+              {activeEncounter.icon} {activeEncounter.title}
+            </span>
+          )}
           {/* 1.7: Power-square control strip */}
           <div className="ps-strip" id="ps-strip" aria-label="Power square control">
             {psControlMap.map((entry, i) => (
