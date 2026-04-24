@@ -61,7 +61,7 @@ export const ENCOUNTERS: EncounterNode[] = [
   {
     id:             'arena-test',
     title:          'Arena Test',
-    subtitle:       'Direct combat encounter — enable with ?arena=1',
+    subtitle:       'Skip straight to arena combat for a focused unit duel',
     icon:           '🏟',
     difficultyLabel: 'Varies',
     themeClass:     'arena-test',

@@ -46,11 +46,11 @@ export function CampaignMap({ onLaunch, onBack }: Props) {
     setTimeout(onBack, 400);
   }, [exiting, onBack]);
 
-  // Keyboard: Enter/Space → launch selected; Escape/Backspace → back
+  // Keyboard: Enter/Space → launch selected; Escape → back
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLaunch(); }
-      if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); handleBack(); }
+      if (e.key === 'Escape') { e.preventDefault(); handleBack(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);

@@ -265,6 +265,14 @@ export default function App() {
             setActiveEncounter(null);
             setBoardStateRaw(makeInitialBoardState());
           }}
+          onReturnToTitle={() => {
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setActiveEncounter(null);
+            setBoardStateRaw(makeInitialBoardState());
+            setMode('title');
+          }}
         />
       </div>
     );

@@ -41,9 +41,11 @@ interface Props {
   onResetGame: () => void;
   /** 3.0: Active encounter from CampaignMap (null = Continue Game or QA setup) */
   activeEncounter?: EncounterNode | null;
+  /** 3.1-rc: Return to title screen from game-over modal */
+  onReturnToTitle?: () => void;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
@@ -65,6 +67,18 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
       hasPreloaded.current = true;
       preloadSounds();
     }
+  }, []);
+
+  // 3.1-rc: M key toggles mute from anywhere on the board
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+        const next = toggleMute();
+        setAudioMuted(next);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   // Start music when game becomes active, stop on gameover
@@ -270,7 +284,8 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
       <header className="board-hud">
         <div className="hud-left">
           <span className="game-title">⚔ Archon</span>
-          <span className="board-subtitle">Board Alpha</span>
+          {/* 3.1-rc: hide 'Board Alpha' when an encounter badge is present */}
+          {!activeEncounter && <span className="board-subtitle">Board</span>}
           {/* 3.0: Encounter badge */}
           {activeEncounter && (
             <span
@@ -345,15 +360,6 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           >
             ↺ Reset
           </button>
-          {board.phase === 'gameover' && (
-            <button
-              id="btn-board-reset"
-              className="btn-rematch"
-              onClick={() => setBoard(makeInitialBoardState())}
-            >
-              New Game
-            </button>
-          )}
         </div>
       </header>
 
@@ -498,9 +504,8 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         <GameOverModal
           winner={gameOverMeta.winnerFaction}
           reason={gameOverMeta.reason}
-          onPlayAgain={() => {
-            onResetGame();
-          }}
+          onNewGame={onResetGame}
+          onReturnToTitle={onReturnToTitle}
         />
       )}
     </div>
@@ -570,10 +575,13 @@ function DefeatedToken({ piece, pack }: TokenProps) {
 interface GameOverModalProps {
   winner: 'light' | 'dark';
   reason: 'all_enemies_eliminated' | 'faction_annihilated' | 'power_squares_controlled';
-  onPlayAgain: () => void;
+  /** Start a new game via campaign map */
+  onNewGame:        () => void;
+  /** Return to title screen (optional) */
+  onReturnToTitle?: () => void;
 }
 
-function GameOverModal({ winner, reason, onPlayAgain }: GameOverModalProps) {
+function GameOverModal({ winner, reason, onNewGame, onReturnToTitle }: GameOverModalProps) {
   const isLight = winner === 'light';
   const title   = isLight ? '✦ Light Victorious' : '🌑 Dark Triumphant';
   const sub     = reason === 'power_squares_controlled'
@@ -600,11 +608,20 @@ function GameOverModal({ winner, reason, onPlayAgain }: GameOverModalProps) {
         <button
           id="btn-play-again"
           className="gameover-play-again"
-          onClick={onPlayAgain}
+          onClick={onNewGame}
           autoFocus
         >
-          ↺ Play Again
+          ↺ New Game
         </button>
+        {onReturnToTitle && (
+          <button
+            id="btn-return-to-title"
+            className="gameover-return-title"
+            onClick={onReturnToTitle}
+          >
+            ← Return to Title
+          </button>
+        )}
       </div>
     </div>
   );

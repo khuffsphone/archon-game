@@ -195,3 +195,30 @@ describe('3.0 — campaign flow data integrity', () => {
     expect(ENCOUNTERS[2].id).toBe('arena-test');
   });
 });
+// ─── 3.1-rc: RC polish regression tests ─────────────────────────────────────
+
+describe('3.1-rc — encounter copy quality', () => {
+  it('no encounter subtitle contains internal URL params (?arena=1 etc.)', () => {
+    for (const enc of ENCOUNTERS) {
+      expect(enc.subtitle).not.toMatch(/\?arena|=1/);
+    }
+  });
+
+  it('Arena Test subtitle is player-facing copy (not a dev note)', () => {
+    const enc = getEncounter('arena-test')!;
+    expect(enc.subtitle).not.toContain('?arena=1');
+    expect(enc.subtitle.length).toBeGreaterThan(10);
+  });
+
+  it('no encounter subtitle is empty', () => {
+    for (const enc of ENCOUNTERS) {
+      expect(enc.subtitle.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('all encounter titles are player-readable (no internal slashes or params)', () => {
+    for (const enc of ENCOUNTERS) {
+      expect(enc.title).not.toMatch(/[/?=]/);
+    }
+  });
+});

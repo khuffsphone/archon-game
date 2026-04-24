@@ -1,8 +1,7 @@
 /**
- * TitleScreen.tsx — Archon 2.7
+ * TitleScreen.tsx — Archon 3.1-rc
  *
- * Added: Continue Game button (hasSave prop) + onNewGame / onContinue callbacks.
- * Difficulty selector remains; keyboard shortcuts remain.
+ * RC polish: version bump, cleaner difficulty copy, controls section added.
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import type { Difficulty } from '../arena/difficultyConfig';
@@ -44,7 +43,16 @@ const RULES = [
 
 const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [
   { value: 'easy',   label: 'Easy',   desc: 'Slower, more forgiving AI' },
-  { value: 'normal', label: 'Normal', desc: 'Full arena AI (2.1 behaviour)' },
+  { value: 'normal', label: 'Normal', desc: 'Tactical AI — standard challenge' },
+];
+
+const CONTROLS = [
+  { key: 'Click piece',  action: 'Select / deselect' },
+  { key: 'Click square', action: 'Move or attack' },
+  { key: 'Heal button',  action: 'Cure or heal adjacent ally' },
+  { key: 'C',           action: 'Continue saved game (title screen)' },
+  { key: 'Esc',         action: 'Back / cancel (campaign map)' },
+  { key: 'M',           action: 'Toggle mute (board)' },
 ];
 
 export function TitleScreen({ hasSave, onNewGame, onContinue }: Props) {
@@ -169,8 +177,21 @@ export function TitleScreen({ hasSave, onNewGame, onContinue }: Props) {
           </div>
         </section>
 
+        {/* Controls reference */}
+        <section className="title-controls" aria-label="Keyboard controls">
+          <h2 className="title-rules__heading">Controls</h2>
+          <div className="title-controls__grid">
+            {CONTROLS.map((c, i) => (
+              <div key={i} className="title-control-row">
+                <kbd className="title-control-key">{c.key}</kbd>
+                <span className="title-control-action">{c.action}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <footer className="title-footer">
-          <span>Archon v2.7 · Headless Studios</span>
+          <span>Archon v3.1-rc · Headless Studios · {new Date().getFullYear()}</span>
         </footer>
       </div>
     </div>
