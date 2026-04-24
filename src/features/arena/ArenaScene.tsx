@@ -192,9 +192,9 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
 
           {/* Center: timer + VS + difficulty badge */}
           <div className="arena-hud-center">
-            <div className={`arena-timer ${timerLow ? 'arena-timer--low' : ''}`}>
+            <div className={`arena-timer ${timerLow && hud.phase === 'fighting' ? 'arena-timer--low' : ''} ${hud.phase === 'countdown' ? 'arena-timer--countdown' : ''}`} id="arena-timer">
               {hud.phase === 'countdown'
-                ? hud.countdownSec > 0 ? `${hud.countdownSec}` : '⚔'
+                ? hud.countdownLabel
                 : timeSec
               }
             </div>

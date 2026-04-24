@@ -14,7 +14,7 @@ import {
   drawHitEffects, drawCountdown, drawProjectiles,
 } from './arenaRenderer';
 import {
-  ARENA_DURATION_MS, ARENA_COUNTDOWN_MS,
+  ARENA_DURATION_MS, ARENA_COUNTDOWN_MS, ARENA_RESULT_HOLD_MS,
   CANVAS_W, CANVAS_H,
   PROJECTILE_SPEED, PROJECTILE_LIFETIME_MS, PROJECTILE_W, PROJECTILE_H,
   JUMP_IMPULSE,
@@ -88,6 +88,8 @@ export class GameLoop {
   private resultCb: ((r: ArenaResult) => void) | null = null;
   private hudCb:    ((snap: HudSnapshot) => void) | null = null;
   private winner: HudSnapshot['winner'] = null;
+  /** Guards against resultCb being called more than once per fight */
+  private _resultFired = false;
 
   constructor(canvas: HTMLCanvasElement, config: ArenaConfig) {
     this.canvas  = canvas;
@@ -384,13 +386,15 @@ export class GameLoop {
 
   private _endFight(reason: 'player-wins' | 'enemy-wins' | 'timeout'): void {
     if (this.phase === 'result') return;
+    if (this._resultFired) return; // belt-and-suspenders guard
     this.phase = 'result';
     let result: ArenaResult;
     if (reason === 'player-wins')      { result = { winner: 'player', remainingHp: this.player.hp }; this.winner = 'player'; }
     else if (reason === 'enemy-wins')  { result = { winner: 'enemy',  remainingHp: this.enemy.hp  }; this.winner = 'enemy';  }
     else                               { result = { winner: 'timeout-defender' };                     this.winner = 'timeout'; }
     this._render(); this._emitHud();
-    setTimeout(() => { this.resultCb?.(result); }, 1800);
+    this._resultFired = true;
+    setTimeout(() => { this.resultCb?.(result); }, ARENA_RESULT_HOLD_MS);
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -423,6 +427,12 @@ export class GameLoop {
       : e.wailTimer <= 0 ? 'ready'
       : 'cooldown';
 
+    const sec = Math.ceil(this.countdownMs / 1000);
+    const countdownLabel =
+      this.phase === 'countdown'
+        ? (sec > 0 ? String(sec) : 'FIGHT!')
+        : '';
+
     this.hudCb?.({
       playerHp:        this.player.hp,
       playerMaxHp:     this.player.maxHp,
@@ -432,7 +442,8 @@ export class GameLoop {
       enemyName:       this.enemy.name,
       timeRemainingMs: this.timeRemainingMs,
       phase:           this.phase,
-      countdownSec:    Math.ceil(this.countdownMs / 1000),
+      countdownSec:    sec,
+      countdownLabel,
       winner:          this.winner,
       difficulty:      this.difficulty,
       playerRebirthStatus: rebirthStatus(this.player),

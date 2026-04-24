@@ -113,6 +113,8 @@ export interface HudSnapshot {
   timeRemainingMs: number;
   phase: 'countdown' | 'fighting' | 'result';
   countdownSec: number;
+  /** Human-readable countdown label: '3' | '2' | '1' | 'FIGHT!' | '' */
+  countdownLabel: string;
   winner: 'player' | 'enemy' | 'timeout' | null;
   difficulty: import('./difficultyConfig').Difficulty;
   /** Rebirth badge for the player's piece. 'none' = unit cannot rebirth. */

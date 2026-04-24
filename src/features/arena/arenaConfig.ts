@@ -6,8 +6,17 @@
 /** Total combat duration before timeout (ms) */
 export const ARENA_DURATION_MS = 30_000;
 
-/** Countdown before fight begins (ms) */
-export const ARENA_COUNTDOWN_MS = 3_000;
+/**
+ * Countdown before fight begins (ms).
+ * 3 s of numeric countdown (3→2→1) + 1 s of 'FIGHT!' flash = 4 s total.
+ */
+export const ARENA_COUNTDOWN_MS = 4_000;
+
+/**
+ * How long the result overlay is held before the callback fires and
+ * the arena returns to the board (ms).
+ */
+export const ARENA_RESULT_HOLD_MS = 2_000;
 
 /** Arena world bounds in canvas pixels (1920×991 logical resolution) */
 export const ARENA_BOUNDS = {
