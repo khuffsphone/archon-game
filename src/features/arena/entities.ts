@@ -21,7 +21,7 @@ export interface HitEffect {
   y: number;
   faction: 'light' | 'dark';
   timeRemaining: number; // ms
-  type: 'hit' | 'death';
+  type: 'hit' | 'death' | 'rebirth';
 }
 
 export interface Projectile {
@@ -71,6 +71,9 @@ export interface ArenaEntity {
   // Timing
   invulnTimer: number;     // ms of hit invulnerability
 
+  // Ability: Phoenix Rebirth
+  rebirthAvailable: boolean;  // true for Phoenix, false for all others
+
   // Visual
   sprite: HTMLImageElement | null;
   spriteLoaded: boolean;
@@ -90,6 +93,9 @@ export interface HudSnapshot {
   countdownSec: number;
   winner: 'player' | 'enemy' | 'timeout' | null;
   difficulty: import('./difficultyConfig').Difficulty;
+  /** Rebirth badge for the player's piece. 'none' = unit cannot rebirth. */
+  playerRebirthStatus: 'ready' | 'used' | 'none';
+  enemyRebirthStatus:  'ready' | 'used' | 'none';
 }
 
 // ─── Stat Mapper ─────────────────────────────────────────────────────────────
@@ -151,6 +157,9 @@ export function boardPieceToEntity(
     attackStateTimer: 0,
     isRanged: piece.role === 'caster',
     invulnTimer: 0,
+
+    // Phoenix Rebirth — only the phoenix gets this
+    rebirthAvailable: piece.role === 'herald' && piece.pieceId.toLowerCase().includes('phoenix'),
 
     sprite,
     spriteLoaded,

@@ -893,3 +893,35 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 
 @keyframes gameover-fade-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes gameover-slide-up { from { transform: translateY(28px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Phoenix Rebirth Badge (Arena HUD) ────────────────────────── */
+.arena-rebirth-badge {
+  font: 600 10px 'Inter', sans-serif;
+  letter-spacing: 0.08em;
+  padding: 2px 9px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.4);
+  color: var(--text-muted, #aaa);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: all 0.3s;
+}
+.arena-rebirth-badge--ready {
+  color: hsl(35, 95%, 65%);
+  border-color: hsl(35, 70%, 38%);
+  background: hsl(35, 55%, 10%);
+  box-shadow: 0 0 8px hsl(35,80%,40%,0.3);
+  animation: rebirth-pulse 2s ease-in-out infinite;
+}
+.arena-rebirth-badge--used {
+  color: hsl(0, 0%, 40%);
+  border-color: hsl(0, 0%, 22%);
+  background: transparent;
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+@keyframes rebirth-pulse {
+  0%, 100% { box-shadow: 0 0 6px hsl(35,80%,40%,0.2); }
+  50%       { box-shadow: 0 0 16px hsl(35,90%,55%,0.6); }
+}

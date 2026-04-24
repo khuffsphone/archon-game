@@ -165,10 +165,21 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
       {hud && (
         <div className="arena-hud" id="arena-hud">
           {/* Player HP (left) */}
-          <HpBar
-            hp={hud.playerHp} maxHp={hud.playerMaxHp}
-            faction="light" name={hud.playerName} side="left"
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+            <HpBar
+              hp={hud.playerHp} maxHp={hud.playerMaxHp}
+              faction="light" name={hud.playerName} side="left"
+            />
+            {hud.playerRebirthStatus !== 'none' && (
+              <div
+                className={`arena-rebirth-badge arena-rebirth-badge--${hud.playerRebirthStatus}`}
+                id="arena-rebirth-badge-player"
+                title={hud.playerRebirthStatus === 'ready' ? 'Phoenix Rebirth: Ready' : 'Phoenix Rebirth: Used'}
+              >
+                🔥 {hud.playerRebirthStatus === 'ready' ? 'Rebirth Ready' : 'Rebirth Used'}
+              </div>
+            )}
+          </div>
 
           {/* Center: timer + VS + difficulty badge */}
           <div className="arena-hud-center">

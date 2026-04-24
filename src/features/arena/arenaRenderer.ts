@@ -142,15 +142,49 @@ export function drawHitEffects(
   effects: HitEffect[],
 ): void {
   for (const fx of effects) {
-    const alpha = Math.min(1, fx.timeRemaining / 120);
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = `bold ${fx.type === 'death' ? 44 : 28}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = fx.faction === 'light' ? '#ffdd44' : '#dd44ff';
-    ctx.shadowBlur = 16;
-    ctx.shadowColor = fx.faction === 'light' ? '#ff8800' : '#8800ff';
-    ctx.fillText(fx.type === 'death' ? '💀' : '⚡', fx.x, fx.y - (120 - fx.timeRemaining) * 0.6);
+
+    if (fx.type === 'rebirth') {
+      // Expanding golden ring + phoenix emoji
+      const progress = 1 - fx.timeRemaining / 900; // 0→1 as effect plays
+      const radius   = 30 + progress * 140;
+      const alpha    = Math.max(0, 1 - progress * 1.1);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#ffdd44';
+      ctx.shadowBlur  = 40;
+      ctx.shadowColor = '#ffaa00';
+      ctx.lineWidth   = 6 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Second inner ring
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 3 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Phoenix emoji
+      const emojiAlpha = progress < 0.6 ? 1 : Math.max(0, 1 - (progress - 0.6) / 0.4);
+      ctx.globalAlpha  = emojiAlpha;
+      ctx.font         = 'bold 56px sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.shadowBlur   = 30;
+      ctx.shadowColor  = '#ffaa00';
+      ctx.fillText('🔥', fx.x, fx.y - 20 - progress * 30);
+    } else {
+      // Standard hit / death effect
+      const alpha = Math.min(1, fx.timeRemaining / 120);
+      ctx.globalAlpha = alpha;
+      ctx.font = `bold ${fx.type === 'death' ? 44 : 28}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = fx.faction === 'light' ? '#ffdd44' : '#dd44ff';
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = fx.faction === 'light' ? '#ff8800' : '#8800ff';
+      ctx.fillText(fx.type === 'death' ? '💀' : '⚡', fx.x, fx.y - (120 - fx.timeRemaining) * 0.6);
+    }
+
     ctx.restore();
   }
 }

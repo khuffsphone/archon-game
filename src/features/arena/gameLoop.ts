@@ -47,6 +47,13 @@ const ACTIVE_MS   = 100;
 const RECOVERY_MS = 190;
 const INVULN_MS   = 320;
 
+/** HP Phoenix is restored to on rebirth (fraction of maxHp) */
+const PHOENIX_REBIRTH_HP_FRAC = 0.4;
+/** Invulnerability granted to Phoenix on rebirth (ms) */
+const PHOENIX_REBIRTH_INVULN_MS = 1_200;
+/** Duration of the rebirth flash effect (ms) */
+const PHOENIX_REBIRTH_FLASH_MS  = 900;
+
 let _projIdCounter = 0;
 
 // ─── Game Loop ────────────────────────────────────────────────────────────────
@@ -262,6 +269,27 @@ export class GameLoop {
     target.hp = Math.max(0, target.hp - dmg);
     target.invulnTimer = INVULN_MS;
 
+    // ── Phoenix Rebirth interception ────────────────────────────────────────
+    if (target.hp <= 0 && target.rebirthAvailable) {
+      target.rebirthAvailable = false;
+      target.hp = Math.max(1, Math.round(target.maxHp * PHOENIX_REBIRTH_HP_FRAC));
+      target.invulnTimer = PHOENIX_REBIRTH_INVULN_MS;
+
+      // Rebirth flash effect
+      this.effects.push({
+        x: target.x,
+        y: target.y - target.height * 0.5,
+        faction: target.faction,
+        timeRemaining: PHOENIX_REBIRTH_FLASH_MS,
+        type: 'rebirth',
+      });
+
+      window.dispatchEvent(new CustomEvent('arena:sfx', {
+        detail: { id: 'sfx-teleport-light-v1' },
+      }));
+      return; // ← do NOT call _endFight
+    }
+
     this.effects.push({
       x: target.x,
       y: target.y - target.height * 0.6,
@@ -310,6 +338,11 @@ export class GameLoop {
   // ─── HUD snapshot ─────────────────────────────────────────────────────────
 
   private _emitHud(): void {
+    const rebirthStatus = (e: ArenaEntity): 'ready' | 'used' | 'none' =>
+      !e.rebirthAvailable && e.pieceId.toLowerCase().includes('phoenix') ? 'used'
+      : e.rebirthAvailable ? 'ready'
+      : 'none';
+
     this.hudCb?.({
       playerHp:        this.player.hp,
       playerMaxHp:     this.player.maxHp,
@@ -322,6 +355,8 @@ export class GameLoop {
       countdownSec:    Math.ceil(this.countdownMs / 1000),
       winner:          this.winner,
       difficulty:      this.difficulty,
+      playerRebirthStatus: rebirthStatus(this.player),
+      enemyRebirthStatus:  rebirthStatus(this.enemy),
     });
   }
 }
