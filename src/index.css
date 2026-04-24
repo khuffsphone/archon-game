@@ -278,11 +278,17 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   box-shadow: 0 0 10px hsl(280,65%,55%,0.7);
 }
 .arena-hp-fill--low {
-  animation: hp-pulse 0.5s ease-in-out infinite alternate;
+  animation: hp-pulse 0.45s ease-in-out infinite alternate;
 }
 @keyframes hp-pulse {
-  from { filter: brightness(1);   }
-  to   { filter: brightness(1.6); }
+  from {
+    filter: brightness(1) saturate(1);
+    box-shadow: 0 0 8px rgba(255,60,40,0.3);
+  }
+  to {
+    filter: brightness(1.5) saturate(0.4) sepia(0.8) hue-rotate(-20deg);
+    box-shadow: 0 0 18px rgba(255,60,40,0.85);
+  }
 }
 
 .arena-hp-value {

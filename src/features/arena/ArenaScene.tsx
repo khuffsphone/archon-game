@@ -45,7 +45,7 @@ function HpBar({
   hp: number; maxHp: number; faction: 'light' | 'dark'; name: string; side: 'left' | 'right';
 }) {
   const pct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
-  const low = pct < 30;
+  const low = pct < 35;
   return (
     <div className={`arena-hp-panel arena-hp-panel--${side}`}>
       <span className="arena-hp-name">{name}</span>

@@ -6,12 +6,13 @@
  */
 import type { ArenaEntity, HitEffect, Projectile } from './entities';
 import { BANSHEE_WAIL_RADIUS } from './entities';
-import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H } from './arenaConfig';
+import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H, HIT_FX_MS, DEATH_FX_MS } from './arenaConfig';
 
-// Effect durations (kept local to avoid circular imports)
+// Ability-specific effect durations (match values in gameLoop.ts / entities.ts)
 const REBIRTH_FX_MS = 900;
 const REGEN_FX_MS   = 600;
 const WAIL_FX_MS    = 800;
+// HIT_FX_MS and DEATH_FX_MS are imported from arenaConfig above.
 
 // ─── Preloaded arena backgrounds ─────────────────────────────────────────────
 
@@ -223,16 +224,36 @@ export function drawHitEffects(
       ctx.shadowBlur  = 20;
       ctx.shadowColor = '#9900cc';
       ctx.fillText('👻', fx.x, fx.y - 10 - progress * 30);
-    } else {
-      // Standard hit / death effect
-      const alpha = Math.min(1, fx.timeRemaining / 120);
+    } else if (fx.type === 'hit') {
+      // Hit spark: rises upward, fades out over HIT_FX_MS
+      const progress = 1 - fx.timeRemaining / HIT_FX_MS; // 0→1
+      const alpha    = Math.max(0, 1 - progress * 1.1);
+      const yRise    = progress * 50;
       ctx.globalAlpha = alpha;
-      ctx.font = `bold ${fx.type === 'death' ? 44 : 28}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = fx.faction === 'light' ? '#ffdd44' : '#dd44ff';
-      ctx.shadowBlur = 16;
+      ctx.font        = 'bold 30px sans-serif';
+      ctx.textAlign   = 'center';
+      ctx.fillStyle   = fx.faction === 'light' ? '#ffdd44' : '#dd44ff';
+      ctx.shadowBlur  = 18;
       ctx.shadowColor = fx.faction === 'light' ? '#ff8800' : '#8800ff';
-      ctx.fillText(fx.type === 'death' ? '💀' : '⚡', fx.x, fx.y - (120 - fx.timeRemaining) * 0.6);
+      ctx.fillText('⚡', fx.x, fx.y - yRise);
+    } else if (fx.type === 'death') {
+      // Death: big skull, rises and fades over DEATH_FX_MS
+      const progress = 1 - fx.timeRemaining / DEATH_FX_MS;
+      const alpha    = Math.max(0, 1 - progress * 1.05);
+      const yRise    = progress * 90;
+      ctx.globalAlpha = alpha;
+      ctx.font        = 'bold 52px sans-serif';
+      ctx.textAlign   = 'center';
+      ctx.shadowBlur  = 24;
+      ctx.shadowColor = fx.faction === 'light' ? '#ff8800' : '#8800ff';
+      ctx.fillText('💀', fx.x, fx.y - yRise);
+    } else {
+      // Unknown effect type — minimal fallback
+      ctx.globalAlpha = Math.max(0, fx.timeRemaining / 200);
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('?', fx.x, fx.y);
     }
 
     ctx.restore();

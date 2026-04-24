@@ -17,7 +17,7 @@ import {
   ARENA_DURATION_MS, ARENA_COUNTDOWN_MS, ARENA_RESULT_HOLD_MS,
   CANVAS_W, CANVAS_H,
   PROJECTILE_SPEED, PROJECTILE_LIFETIME_MS, PROJECTILE_W, PROJECTILE_H,
-  JUMP_IMPULSE,
+  JUMP_IMPULSE, HIT_FX_MS, DEATH_FX_MS,
 } from './arenaConfig';
 import { getDifficulty, getActiveProfile } from './difficultyConfig';
 import type { AIProfile, Difficulty } from './difficultyConfig';
@@ -46,7 +46,8 @@ const ATTACK     = new Set(['z', 'Z', 'x', 'X', 'Enter']);
 const WINDUP_MS   = 110;
 const ACTIVE_MS   = 100;
 const RECOVERY_MS = 190;
-const INVULN_MS   = 320;
+/** Post-hit invulnerability window (ms). Raised 320→380 to prevent back-to-back hit stacking. */
+const INVULN_MS   = 380;
 
 /** HP Phoenix is restored to on rebirth (fraction of maxHp) */
 const PHOENIX_REBIRTH_HP_FRAC = 0.4;
@@ -308,7 +309,7 @@ export class GameLoop {
       x: target.x,
       y: target.y - target.height * 0.6,
       faction: attacker.faction,
-      timeRemaining: 200,
+      timeRemaining: target.hp <= 0 ? DEATH_FX_MS : HIT_FX_MS,
       type: target.hp <= 0 ? 'death' : 'hit',
     });
 

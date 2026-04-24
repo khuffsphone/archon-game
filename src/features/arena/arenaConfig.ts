@@ -60,8 +60,8 @@ export const ENTITY_H = 120;
 /** Caster projectile travel speed (px/s) */
 export const PROJECTILE_SPEED = 900;
 
-/** Projectile lifetime in ms before despawn */
-export const PROJECTILE_LIFETIME_MS = 1_400;
+/** Projectile lifetime in ms before despawn. Trimmed 1400→1200 — stray bolts no longer linger past screen edge. */
+export const PROJECTILE_LIFETIME_MS = 1_200;
 
 /** Projectile hitbox size */
 export const PROJECTILE_W = 28;
@@ -90,3 +90,10 @@ export const AI_REACTION_VARIANCE = 0.15;
 /** AI Y-axis wandering amplitude (px) — prevents pure horizontal deadlock */
 export const AI_Y_WANDER_AMP = 60;
 export const AI_Y_WANDER_FREQ = 0.0008; // cycles per ms
+
+// ─── VFX Timing ───────────────────────────────────────────────────────────────
+
+/** Hit spark display duration (ms). Raised 200→350 so impacts are readable at a glance. */
+export const HIT_FX_MS   = 350;
+/** Death effect display duration (ms). */
+export const DEATH_FX_MS = 600;
