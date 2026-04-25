@@ -1,8 +1,8 @@
-# Archon — Milestone 3.3 Release
+# Archon — Milestone 3.7 Release
 
 > **Status: Released — Ready for Playtest**
-> Build date: 2026-04-24 · Version: **v3.3**
-> Tests: **377 / 377** · TSC: **0 errors**
+> Build date: 2026-04-25 · Version: **v3.7**
+> Tests: **438 / 438** · TSC: **0 errors**
 
 ---
 
@@ -10,26 +10,21 @@
 
 ### Option A — Desktop Launcher (recommended)
 1. Double-click **`▶ Play Archon.bat`** on the Desktop (`C:\Users\KHuff\Desktop\Archon Game\`)
-2. A console window will open and start a local HTTP server on **http://127.0.0.1:5175**
-3. Your browser will open automatically after a 2-second delay
-4. Keep the console window open while you play — close it to stop the server
-
-> The desktop launcher serves the latest compiled build.
-> Re-run `npm run build` in `C:\Dev\archon-game` and re-deploy to update it (see § Updating the Launcher below).
+2. A console window opens and starts a local HTTP server on **http://127.0.0.1:5175**
+3. Your browser opens automatically after a 2-second delay
+4. Keep the console window open while you play
 
 ### Option B — Dev Server (live reload)
 ```
 cd C:\Dev\archon-game
 npm run dev
 ```
-Opens at **http://localhost:5173** (or next available port). Use this for active development.
+Opens at **http://localhost:5173**. Use this for active development.
 
 ### Updating the Desktop Launcher After a Code Change
 ```powershell
 cd C:\Dev\archon-game
 npm run build
-
-# Deploy fresh bundle to desktop launcher
 Copy-Item dist\index.html "C:\Users\KHuff\Desktop\Archon Game\index.html" -Force
 Get-ChildItem "C:\Users\KHuff\Desktop\Archon Game\assets" -Filter "index-*" | Remove-Item -Force
 Get-ChildItem dist\assets | Copy-Item -Destination "C:\Users\KHuff\Desktop\Archon Game\assets\" -Force
@@ -37,101 +32,102 @@ Get-ChildItem dist\assets | Copy-Item -Destination "C:\Users\KHuff\Desktop\Archo
 
 ---
 
-## Shipped Features
+## Shipped Features by Milestone
 
-### Milestone 1.x — Board Engine
+### 1.x — Board Engine
 | Feature | Summary |
 |---|---|
-| 9×9 Board | Full grid, piece tokens, legal-move highlighting, attack indicators |
+| 9×9 Board | Full grid, piece tokens, legal-move highlight, attack indicators |
 | 7-vs-7 Roster | Knight, Herald, Archer, Golem, Phoenix, Troll, Banshee per faction |
 | Move Profiles | Per-piece rules: warrior slide, caster jump, sentinel hold, herald warp |
 | AI (Dark) | CPU-controlled Dark — advances, seeks power squares, initiates combat |
 | Power Squares | 5 marked squares; +2 HP/turn; capture all 5 for instant win |
 | Imprisonment Loop | Herald imprisons enemies; allies cure with Heal action |
-| Game Over | Win by elimination or power-square control; overlay modal |
-| Event Log | Live board log of moves, attacks, heals, combat outcomes |
-| Audio | Battle music, move/combat/death SFX, mute toggle |
+| Game Over | Elimination or power-square control; overlay modal |
+| Event Log | Live board log |
+| Audio | Battle music, SFX, mute toggle |
 
-### Milestone 2.x — Arena Combat
+### 2.x — Arena Combat
 | Feature | Summary |
 |---|---|
-| 2D Arena | Side-scrolling arena with gravity, jumping, platforms |
-| Melee + Ranged | Per-unit attack profiles; projectiles with lifetime |
-| Difficulty | Easy / Normal selectable on title screen |
-| Phoenix Rebirth | Phoenix survives first lethal hit once per fight |
-| Troll Regen | Troll regenerates HP passively during combat |
+| 2D Arena | Side-scrolling arena — gravity, jumping, platforms |
+| Melee + Ranged | Per-unit attack profiles; projectiles |
+| Difficulty | Easy / Normal on title screen |
+| Phoenix Rebirth | Survives first lethal hit once per fight |
+| Troll Regen | Passive HP regen during combat |
 | Banshee Wail | Radial AoE on cooldown; purple VFX ring |
-| Arena → Board | Combat results return to board (winner survives, HP preserved) |
-| Round System | Countdown 3-2-1-FIGHT, active phase, result pause |
-| Arena Polish | Invuln frames, HP bar pulse, projectile trim, hit/death FX |
+| Arena → Board | Results carry back to board |
+| Round System | 3-2-1-FIGHT countdown, result pause |
 
-### Milestone 2.7 — Save / Resume
+### 2.7 — Save / Resume
 | Feature | Summary |
 |---|---|
-| Auto-save | Board state + log saved to `localStorage` after every change |
-| Continue Game | Title screen shows Continue when valid save exists |
-| New Game | Clears save, routes through Campaign Map |
-| Reset | Board HUD "↺ Reset" button with confirm dialog |
-| Combat-safety | Save during arena fight restores to last clean board state |
-| Versioned schema | `saveVersion: 1`; corrupt/stale saves rejected gracefully |
+| Auto-save | `localStorage` after every board change |
+| Continue Game | Visible on title when save exists |
+| Reset | HUD "↺ Reset" with confirm |
 
-### Milestone 3.0 — Campaign Map
+### 3.0 — Campaign Map
 | Feature | Summary |
 |---|---|
-| Campaign Map | Encounter selection screen between title and board |
+| Campaign Map | Encounter selection between title and board |
 | 3 Encounters | Tutorial Skirmish · Standard Battle · Arena Test |
-| Per-theme styling | Teal / Gold / Purple per encounter type |
-| Encounter badge | HUD badge on board shows active encounter |
-| Keyboard nav | Enter/Space to launch, Esc to go back |
+| Encounter badge | HUD badge shows active encounter |
 
-### Milestone 3.1 — RC Polish
-| Fix | Detail |
-|---|---|
-| Controls section | Keyboard shortcuts reference on Title Screen |
-| GameOverModal | "New Game" + "← Return to Title" secondary action |
-| M key | M toggles mute from anywhere on the board |
-| Copy fixes | Difficulty desc, Arena Test subtitle, "Board Alpha" removed |
-| Backspace | Removed from Campaign Map (browser footgun) |
-| Version footer | Live version + year in title footer |
+### 3.1 — RC Polish
+Controls section on title screen, GameOverModal "Return to Title", M key mute, copy/UX fixes.
 
-### Milestone 3.2 — Tutorial Skirmish v1
+### 3.2 — Tutorial Skirmish v1
+Light: Knight/Archer/Unicorn · Dark: Sentinel/Banshee/Troll · Row 6 vs row 2 · ~4-turn engagement.
+
+### 3.3 — Release Packaging v1
+Desktop launcher updated. Version footer introduced.
+
+### 3.5 — Campaign Progression v1
 | Feature | Summary |
 |---|---|
-| Reduced 3-vs-3 roster | Light: Knight, Archer, Unicorn · Dark: Sentinel, Banshee, Troll |
-| Closer start positions | Row 6 vs row 2 — ~4-row gap, engage in 2–3 turns |
-| Campaign routing | App switches on `boardSetup` field: `'skirmish'` or `'initial'` |
-| No new assets | All pieces drawn from existing ALPHA_ROSTER |
+| Encounter completion | Light win with active encounter marks it complete |
+| localStorage persistence | Stored at `archon:progress:v1` (separate from board save) |
+| Campaign Map badges | ✓ Completed green badge on finished encounter nodes |
+| Clear Progress | Subtle link removes all completion state with confirmation |
+| No lock gates | All encounters remain replayable regardless of completion |
 
-### Milestone 3.3 — Release Packaging
-| Item | Detail |
+### 3.6 — Encounter Completion Feedback v1
+| Feature | Summary |
 |---|---|
-| Desktop launcher updated | Fresh 3.3 build deployed to `C:\Users\KHuff\Desktop\Archon Game\` |
-| Version bump | Footer now shows `v3.3` |
-| MILESTONE_3_RC.md | Updated to current test count, features, and limitations |
+| Encounter Complete banner | Green pill with ✓ and encounter name inside Game Over modal |
+| Return to Campaign | Primary action (auto-focused, green) routes back to Campaign Map |
+| Double-fire guard | `useRef` ensures `onEncounterComplete` fires exactly once per game-over |
+| Existing actions preserved | New Game (secondary) · Return to Title (tertiary) unchanged |
+| Dark win unaffected | No banner or Return to Campaign shown on Dark win |
+
+### 3.7 — Release Refresh v1
+Desktop launcher updated to v3.7 build. Documentation updated through 3.6/3.7.
 
 ---
 
-## Test Summary
+## Test Summary (438 / 438 ✅)
 
-| Suite | Tests | Status |
-|---|---|---|
-| boardState.test.ts | 57 | ✅ |
-| boardSave.test.ts | 40 | ✅ |
-| campaignMap.test.ts | 38 | ✅ |
-| skirmishSetup.test.ts | 38 | ✅ |
-| arenaResultIntegration.test.ts | 20 | ✅ |
-| arenaRoundSystem.test.ts | 44 | ✅ |
-| arenaPolish.test.ts | 41 | ✅ |
-| bansheeWail.test.ts | 30 | ✅ |
-| trollRegen.test.ts | 22 | ✅ |
-| phoenixRebirth.test.ts | 19 | ✅ |
-| difficultyConfig.test.ts | 19 | ✅ |
-| arenaAI.test.ts | 9 | ✅ |
-| **Total** | **377** | **✅ All passing** |
+| Suite | Tests |
+|---|---|
+| boardState.test.ts | 57 |
+| boardSave.test.ts | 40 |
+| campaignMap.test.ts | 38 |
+| skirmishSetup.test.ts | 38 |
+| campaignProgress.test.ts | 35 |
+| gameOverModal.test.ts | 26 |
+| arenaRoundSystem.test.ts | 44 |
+| arenaPolish.test.ts | 41 |
+| bansheeWail.test.ts | 30 |
+| arenaResultIntegration.test.ts | 20 |
+| trollRegen.test.ts | 22 |
+| phoenixRebirth.test.ts | 19 |
+| difficultyConfig.test.ts | 19 |
+| arenaAI.test.ts | 9 |
+| **Total** | **438** |
 
 ---
 
-## Controls Reference
+## Controls
 
 | Input | Action |
 |---|---|
@@ -139,26 +135,29 @@ Get-ChildItem dist\assets | Copy-Item -Destination "C:\Users\KHuff\Desktop\Archo
 | Click square | Move or attack |
 | Heal button (sidebar) | Cure or heal adjacent ally |
 | M | Toggle mute (board) |
-| C | Continue saved game (title screen) |
+| C | Continue saved game (title) |
 | Enter / Space | Launch encounter (campaign map) |
-| Esc | Back / cancel (campaign map) |
-| ↺ Reset (HUD) | Clear save and return to title |
+| Esc | Back (campaign map) |
+| ↺ Reset (HUD) | Clear save, return to campaign |
 
 ---
 
 ## Primary Playtest Path
 
-1. **Fresh load** → title screen shows only "⚔ New Game" (no save)
+1. **Fresh load** → title screen shows "⚔ New Game" only (no save)
 2. **New Game** → Campaign Map — 3 encounter nodes visible
-3. **Tutorial Skirmish** → board loads 3-vs-3 with encounter badge "🛡 Tutorial Skirmish"
-4. **Play 2–3 turns** — move Light pieces toward Dark; save auto-writes
-5. **Reload** → title now shows "↩ Continue Game"
-6. **Continue Game** → board restores exactly (same pieces, turn, log)
-7. **Trigger Game Over** → confirm modal shows "↺ New Game" + "← Return to Title"
-8. **Return to Title** → title screen, no stale save shown
-9. **New Game → Standard Battle** → full 14-piece board, encounter badge "⚔ Standard Battle"
-10. **Mute test** → press M to mute; press M again to unmute
-11. **Reset test** → click "↺ Reset" in HUD → confirm dialog → full reset
+3. **Tutorial Skirmish** → board loads 3-vs-3, encounter badge "🛡 Tutorial Skirmish"
+4. **Win the skirmish** (defeat all Dark pieces) → Game Over modal shows:
+   - "✦ Light Victorious"
+   - "✓ Encounter Complete — Tutorial Skirmish" green banner
+   - "↩ Return to Campaign" primary action
+5. **Return to Campaign** → Campaign Map shows "✓ Completed" badge on Tutorial Skirmish
+6. **Standard Battle** → full 14-piece board, encounter badge "⚔ Standard Battle"
+7. **Reload** → "↩ Continue Game" appears on title
+8. **Continue Game** → board restores exactly
+9. **Game Over** → confirm "↺ New Game" + "← Return to Title" still work
+10. **Press M** to mute; M again to unmute
+11. **↺ Reset** (HUD) → confirm dialog → full reset to campaign
 
 ---
 
@@ -166,43 +165,43 @@ Get-ChildItem dist\assets | Copy-Item -Destination "C:\Users\KHuff\Desktop\Archo
 
 | URL | Expected behavior |
 |---|---|
-| `/` | Title screen (no save = New Game only) |
-| `/?setup=adjacent` | Board directly — Knight vs Sorceress at centre |
-| `/?setup=dark-attacker` | Board directly — Dark moves first |
-| `/?setup=gameover` | Board in light-wins game-over state |
-| `/?setup=dark-wins` | Board in dark-wins proof state |
+| `/` | Title screen |
+| `/?setup=adjacent` | Board — Knight vs Sorceress at centre |
+| `/?setup=dark-attacker` | Board — Dark moves first |
+| `/?setup=gameover` | Board — light-wins game-over state |
+| `/?setup=dark-wins` | Board — dark-wins state |
 | `/?mode=combat` | Standalone combat bridge |
 | `/?arena=1` | Board with arena routing active for combat |
 
-> All `?setup=` and `?mode=` params bypass the title screen and campaign map entirely.
+> All `?setup=` and `?mode=` params bypass title screen and campaign map entirely.
 
 ---
 
 ## Known Limitations
 
-| # | Area | Limitation |
-|---|---|---|
-| L-01 | Campaign | No progression, unlocks, or rewards between encounters |
-| L-02 | Arena | Hard AI (minimax) deferred — Easy and Normal only |
-| L-03 | Arena | `?arena=1` URL param required for arena routing; Arena Test encounter cannot set this automatically |
-| L-04 | Save | Single save slot only; no import/export |
-| L-05 | Save | Save not migrated on `saveVersion` change — old save silently discarded |
-| L-06 | Board | Coord debug labels (row,col) visible on each square — no hide toggle |
-| L-07 | Audio | Browser autoplay policy may delay music start until first user interaction |
-| L-08 | Difficulty | Difficulty selector affects arena AI only; board AI is not difficulty-scaled |
+| # | Limitation |
+|---|---|
+| L-01 | No campaign progression, unlocks, or rewards |
+| L-02 | Hard AI (minimax) deferred — Easy and Normal only |
+| L-03 | `?arena=1` URL param required for arena routing; Arena Test can't auto-set it |
+| L-04 | Single save slot only |
+| L-05 | Save not migrated on schema change — old save silently discarded |
+| L-06 | Coord debug labels visible on board squares |
+| L-07 | Browser autoplay may delay music start until first click |
+| L-08 | Difficulty selector affects arena AI only (board AI unaffected) |
 
 ---
 
 ## Recommended Next Milestones
 
-| Priority | Milestone | Description |
-|---|---|---|
-| High | 3.4 — Hard AI | Minimax / alpha-beta for Dark board AI |
-| Medium | 3.5 — Campaign Progression v1 | Win/loss tracking, encounter unlock sequence |
-| Medium | 3.6 — Arena Test auto-routing | Arena Test encounter auto-enables arena combat without `?arena=1` |
-| Low | 3.7 — Save export | Download/upload save JSON |
-| Low | 3.8 — Coord label toggle | Hide/show debug coord labels from HUD |
+| Priority | Milestone |
+|---|---|
+| High | 3.8 — Hard AI (minimax/alpha-beta board AI) |
+| Medium | 3.9 — Arena Test auto-routing (no `?arena=1` needed) |
+| Medium | 4.0 — Campaign Progression v2 (win/loss tracking, encounter sequence) |
+| Low | 4.1 — Save export/import |
+| Low | 4.2 — Coord label toggle |
 
 ---
 
-*Archon v3.3 · Headless Studios · 2026*
+*Archon v3.7 · Headless Studios · 2026*
