@@ -20,11 +20,15 @@ interface Props {
   onLaunch:  (encounter: EncounterNode) => void;
   /** Called when the player presses Back — returns to title. */
   onBack:    () => void;
+  /** 3.5: Set of completed encounter ids from campaign progression */
+  completedIds?: string[];
+  /** 3.5: Called when player clears all progression state */
+  onClearProgress?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CampaignMap({ onLaunch, onBack }: Props) {
+export function CampaignMap({ onLaunch, onBack, completedIds = [], onClearProgress }: Props) {
   const [selected, setSelected] = useState<EncounterType | null>(null);
   const [exiting, setExiting]   = useState(false);
 
@@ -89,7 +93,8 @@ export function CampaignMap({ onLaunch, onBack }: Props) {
         {/* Encounter nodes */}
         <div className="campaign-nodes" role="list" aria-label="Encounter selection">
           {ENCOUNTERS.map((enc) => {
-            const isSelected = selected === enc.id;
+            const isSelected  = selected === enc.id;
+            const isCompleted = completedIds.includes(enc.id);
             return (
               <button
                 key={enc.id}
@@ -98,7 +103,8 @@ export function CampaignMap({ onLaunch, onBack }: Props) {
                 className={[
                   'encounter-node',
                   `encounter-node--${enc.themeClass}`,
-                  isSelected ? 'encounter-node--selected' : '',
+                  isSelected  ? 'encounter-node--selected'  : '',
+                  isCompleted ? 'encounter-node--completed'  : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => handleSelect(enc.id)}
                 aria-pressed={isSelected}
@@ -111,13 +117,35 @@ export function CampaignMap({ onLaunch, onBack }: Props) {
                   <p className="encounter-node__subtitle">{enc.subtitle}</p>
                 </div>
                 <span className="encounter-node__badge">{enc.difficultyLabel}</span>
-                {isSelected && (
+                {isCompleted && (
+                  <span className="encounter-node__completed-badge" aria-label="Completed">
+                    ✓ Completed
+                  </span>
+                )}
+                {isSelected && !isCompleted && (
                   <span className="encounter-node__check" aria-hidden="true">✓</span>
                 )}
               </button>
             );
           })}
         </div>
+
+        {/* 3.5: Clear Progress link — only shown when at least one encounter is completed */}
+        {completedIds.length > 0 && onClearProgress && (
+          <div className="campaign-clear-progress">
+            <button
+              id="btn-clear-progress"
+              className="campaign-clear-progress__btn"
+              onClick={() => {
+                if (window.confirm('Clear all encounter progress?')) {
+                  onClearProgress();
+                }
+              }}
+            >
+              ↺ Clear Progress
+            </button>
+          </div>
+        )}
 
         {/* Selected encounter detail + launch CTA */}
         <div className="campaign-footer">

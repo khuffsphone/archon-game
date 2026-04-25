@@ -26,7 +26,7 @@ import {
   playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
 } from './audioEngine';
 import { getAssetUrl } from '../../lib/packLoader';
-import type { EncounterNode } from './campaignConfig';
+import type { EncounterNode, EncounterType } from './campaignConfig';
 
 interface Props {
   pack: CombatPackManifest;
@@ -43,9 +43,11 @@ interface Props {
   activeEncounter?: EncounterNode | null;
   /** 3.1-rc: Return to title screen from game-over modal */
   onReturnToTitle?: () => void;
+  /** 3.5: Called when Light wins a board game with an active encounter — marks it complete */
+  onEncounterComplete?: (encId: EncounterType) => void;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle, onEncounterComplete }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
@@ -504,8 +506,20 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         <GameOverModal
           winner={gameOverMeta.winnerFaction}
           reason={gameOverMeta.reason}
-          onNewGame={onResetGame}
-          onReturnToTitle={onReturnToTitle}
+          onNewGame={() => {
+            // 3.5: If Light won with an active encounter, mark it complete before resetting
+            if (gameOverMeta.winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
+              onEncounterComplete(activeEncounter.id);
+            }
+            onResetGame();
+          }}
+          onReturnToTitle={onReturnToTitle ? () => {
+            // 3.5: Same — mark complete before returning to title
+            if (gameOverMeta.winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
+              onEncounterComplete(activeEncounter.id);
+            }
+            onReturnToTitle!();
+          } : undefined}
         />
       )}
     </div>

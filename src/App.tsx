@@ -24,6 +24,10 @@ import {
   saveGame, loadGame, clearSave, hasSavedGame,
 } from './features/board/boardSave';
 import type { EncounterNode } from './features/board/campaignConfig';
+import {
+  loadProgress, saveProgress, markEncounterComplete, clearProgress,
+  type CampaignProgressPayload,
+} from './features/board/campaignProgress';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -72,6 +76,9 @@ export default function App() {
 
   // 3.0: Selected encounter — carried from CampaignMap to BoardScene
   const [activeEncounter, setActiveEncounter] = useState<EncounterNode | null>(null);
+
+  // 3.5: Campaign progression — separate from board save
+  const [progress, setProgress] = useState<CampaignProgressPayload>(loadProgress);
 
   // ── 2.7: Save / Resume ────────────────────────────────────────────────────
   // Board log is owned here so it can be persisted alongside boardState.
@@ -187,10 +194,11 @@ export default function App() {
     );
   }
 
-  // 3.0: Campaign Map — encounter selection
+  // 3.0 / 3.5: Campaign Map — encounter selection with completed state
   if (mode === 'campaign') {
     return (
       <CampaignMap
+        completedIds={progress.completedIds}
         onLaunch={(enc) => {
           setActiveEncounter(enc);
           // 3.2: Use the correct board setup for each encounter type
@@ -203,6 +211,10 @@ export default function App() {
           setMode('board');
         }}
         onBack={() => setMode('title')}
+        onClearProgress={() => {
+          clearProgress();
+          setProgress(loadProgress());
+        }}
       />
     );
   }
@@ -263,12 +275,19 @@ export default function App() {
           boardLog={boardLog}
           onBoardLogChange={setBoardLog}
           activeEncounter={activeEncounter}
+          onEncounterComplete={(encId) => {
+            // 3.5: Mark completed and persist immediately
+            const next = markEncounterComplete(progress, encId);
+            setProgress(next);
+            saveProgress(next);
+          }}
           onResetGame={() => {
             clearSave();
             setHasSave(false);
             setBoardLog([]);
             setActiveEncounter(null);
             setBoardStateRaw(makeInitialBoardState());
+            setMode('campaign');
           }}
           onReturnToTitle={() => {
             clearSave();
