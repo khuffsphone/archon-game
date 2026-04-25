@@ -45,13 +45,34 @@ interface Props {
   onReturnToTitle?: () => void;
   /** 3.5: Called when Light wins a board game with an active encounter — marks it complete */
   onEncounterComplete?: (encId: EncounterType) => void;
+  /** 3.6: Return directly to Campaign Map after encounter completion */
+  onReturnToCampaign?: () => void;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle, onEncounterComplete }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle, onEncounterComplete, onReturnToCampaign }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
     console.warn('[BoardScene] Missing assets for alpha roster:', assetCheck.missing);
+  }
+
+  // 3.6: Guard against double-firing onEncounterComplete across multiple modal buttons.
+  // The ref is reset whenever phase leaves 'gameover' (i.e. on New Game / Return).
+  const completedFiredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (board.phase !== 'gameover') completedFiredRef.current = false;
+  }, [board.phase]);
+
+  /**
+   * Fire onEncounterComplete exactly once per game-over event.
+   * @param winnerFaction — provided at call-site to avoid forward ref to gameOverMeta
+   */
+  function fireComplete(winnerFaction: 'light' | 'dark') {
+    if (completedFiredRef.current) return;
+    if (winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
+      completedFiredRef.current = true;
+      onEncounterComplete(activeEncounter.id);
+    }
   }
 
   // ── 1.0: Board event log (lifted to App.tsx in 2.7) ───────────────────────────
@@ -501,23 +522,27 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         </div>
       )}
 
-      {/* 1.1: Game-over modal overlay */}
+      {/* 1.1 / 3.6: Game-over modal overlay */}
       {board.phase === 'gameover' && gameOverMeta && (
         <GameOverModal
           winner={gameOverMeta.winnerFaction}
           reason={gameOverMeta.reason}
+          encounterTitle={
+            gameOverMeta.winnerFaction === 'light' && activeEncounter
+              ? activeEncounter.title
+              : undefined
+          }
+          onReturnToCampaign={
+            gameOverMeta.winnerFaction === 'light' && activeEncounter && onReturnToCampaign
+              ? () => { fireComplete(gameOverMeta.winnerFaction); onReturnToCampaign!(); }
+              : undefined
+          }
           onNewGame={() => {
-            // 3.5: If Light won with an active encounter, mark it complete before resetting
-            if (gameOverMeta.winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
-              onEncounterComplete(activeEncounter.id);
-            }
+            fireComplete(gameOverMeta.winnerFaction);
             onResetGame();
           }}
           onReturnToTitle={onReturnToTitle ? () => {
-            // 3.5: Same — mark complete before returning to title
-            if (gameOverMeta.winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
-              onEncounterComplete(activeEncounter.id);
-            }
+            fireComplete(gameOverMeta.winnerFaction);
             onReturnToTitle!();
           } : undefined}
         />
@@ -584,21 +609,28 @@ function DefeatedToken({ piece, pack }: TokenProps) {
   );
 }
 
-// ─── 1.1: Game Over Modal ──────────────────────────────────────────────────────
+// ─── 1.1 / 3.6: Game Over Modal ───────────────────────────────────────────────
 
 interface GameOverModalProps {
   winner: 'light' | 'dark';
   reason: 'all_enemies_eliminated' | 'faction_annihilated' | 'power_squares_controlled';
+  /** 3.6: When set (Light win + active encounter), show encounter-complete mode */
+  encounterTitle?: string;
+  /** 3.6: Return directly to Campaign Map — primary action on encounter completion */
+  onReturnToCampaign?: () => void;
   /** Start a new game via campaign map */
   onNewGame:        () => void;
   /** Return to title screen (optional) */
   onReturnToTitle?: () => void;
 }
 
-function GameOverModal({ winner, reason, onNewGame, onReturnToTitle }: GameOverModalProps) {
-  const isLight = winner === 'light';
-  const title   = isLight ? '✦ Light Victorious' : '🌑 Dark Triumphant';
-  const sub     = reason === 'power_squares_controlled'
+function GameOverModal({ winner, reason, encounterTitle, onReturnToCampaign, onNewGame, onReturnToTitle }: GameOverModalProps) {
+  const isLight      = winner === 'light';
+  const isEncounter  = isLight && !!encounterTitle;
+
+  // ── Title & subtitle ──────────────────────────────────────────────────────
+  const title = isLight ? '✦ Light Victorious' : '🌑 Dark Triumphant';
+  const sub   = reason === 'power_squares_controlled'
     ? '⚡ All 5 power squares controlled — strategic dominance achieved!'
     : reason === 'faction_annihilated'
     ? 'All enemy forces have been annihilated.'
@@ -610,7 +642,7 @@ function GameOverModal({ winner, reason, onNewGame, onReturnToTitle }: GameOverM
       id="gameover-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label={`${winner === 'light' ? 'Light' : 'Dark'} wins`}
+      aria-label={`${isLight ? 'Light' : 'Dark'} wins`}
     >
       <div className={`gameover-card gameover-card--${winner}`} id="gameover-card">
         <div className="gameover-emblem" aria-hidden="true">
@@ -618,12 +650,37 @@ function GameOverModal({ winner, reason, onNewGame, onReturnToTitle }: GameOverM
         </div>
         <h2 className="gameover-title" id="gameover-title">{title}</h2>
         <p  className="gameover-sub">{sub}</p>
+
+        {/* 3.6: Encounter-complete banner — only shown on Light win with active encounter */}
+        {isEncounter && (
+          <div className="gameover-encounter-complete" id="gameover-encounter-complete">
+            <span className="gameover-encounter-complete__check" aria-hidden="true">✓</span>
+            <div className="gameover-encounter-complete__text">
+              <strong className="gameover-encounter-complete__label">Encounter Complete</strong>
+              <span className="gameover-encounter-complete__name">{encounterTitle}</span>
+            </div>
+          </div>
+        )}
+
         <div className="gameover-divider" />
+
+        {/* 3.6: Return to Campaign is the primary action when coming from an encounter */}
+        {isEncounter && onReturnToCampaign && (
+          <button
+            id="btn-return-to-campaign"
+            className="gameover-return-campaign"
+            onClick={onReturnToCampaign}
+            autoFocus
+          >
+            ↩ Return to Campaign
+          </button>
+        )}
+
         <button
           id="btn-play-again"
           className="gameover-play-again"
           onClick={onNewGame}
-          autoFocus
+          autoFocus={!isEncounter}
         >
           ↺ New Game
         </button>

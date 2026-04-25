@@ -281,6 +281,15 @@ export default function App() {
             setProgress(next);
             saveProgress(next);
           }}
+          onReturnToCampaign={() => {
+            // 3.6: Return to Campaign Map — clear board save, show updated completed badges
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setActiveEncounter(null);
+            setBoardStateRaw(makeInitialBoardState());
+            setMode('campaign');
+          }}
           onResetGame={() => {
             clearSave();
             setHasSave(false);
