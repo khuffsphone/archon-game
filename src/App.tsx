@@ -18,6 +18,7 @@ import {
   makeDarkAttackerContestSetup,
   makeGameOverSetup,
   makeDarkWinsSetup,
+  makeSkirmishBoardState,
 } from './features/board/boardState';
 import {
   saveGame, loadGame, clearSave, hasSavedGame,
@@ -192,8 +193,12 @@ export default function App() {
       <CampaignMap
         onLaunch={(enc) => {
           setActiveEncounter(enc);
-          // For skirmish, board state is already initial (v1: same roster)
-          setBoardStateRaw(getInitialBoardState());
+          // 3.2: Use the correct board setup for each encounter type
+          const initialState =
+            enc.boardSetup === 'skirmish'
+              ? makeSkirmishBoardState()
+              : getInitialBoardState();
+          setBoardStateRaw(initialState);
           setBoardLog([`⚔ Encounter: ${enc.title}`]);
           setMode('board');
         }}

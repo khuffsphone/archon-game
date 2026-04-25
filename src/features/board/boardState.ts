@@ -441,6 +441,68 @@ export function makeInitialBoardState(): BoardState {
 }
 
 /**
+ * makeSkirmishBoardState — 3.2 Tutorial Skirmish setup
+ *
+ * A reduced 3-vs-3 board designed for a fast, readable intro encounter.
+ *
+ * Roster:
+ *   Light:  Knight (warrior), Archer (ranged), Unicorn (fast)
+ *   Dark:   Sentinel (tank), Banshee (ranged/AoE), Troll (regen tank)
+ *
+ * Layout:
+ *   Light pieces start at row 6, spread across cols 2/4/6.
+ *   Dark  pieces start at row 2, spread across cols 2/4/6.
+ *   ~4-row gap → pieces can engage within 2–3 turns.
+ *   Center power square (4,4) is immediately contested.
+ *
+ * All pieces are drawn from ALPHA_ROSTER — no new assets required.
+ *
+ * Activate via CampaignMap → Tutorial Skirmish.
+ */
+export function makeSkirmishBoardState(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  // ── Skirmish roster with custom start coordinates ──────────────────────────
+  const skirmishRoster: Array<{ entry: RosterEntry; coord: BoardCoord }> = [
+    // Light — row 6
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-knight')!,  coord: { row: 6, col: 2 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-archer')!,  coord: { row: 6, col: 4 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-unicorn')!, coord: { row: 6, col: 6 } },
+    // Dark — row 2
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-sentinel')!, coord: { row: 2, col: 2 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-banshee')!,  coord: { row: 2, col: 4 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-troll')!,    coord: { row: 2, col: 6 } },
+  ];
+
+  for (const { entry, coord } of skirmishRoster) {
+    const piece: BoardPiece = {
+      pieceId: entry.pieceId,
+      name:    entry.name,
+      faction: entry.faction,
+      role:    entry.role,
+      coord,
+      hp:      entry.hp,
+      maxHp:   entry.hp,
+      isDead:  false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+  }
+
+  return {
+    phase:           'active',
+    turnFaction:     'light',
+    turnNumber:      1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves:      [],
+  };
+}
+
+/**
  * makeAdjacentContestSetup
  * Deterministic contest test setup for Milestone C QA.
  * Places Knight (light) at (4,3) and Sorceress (dark) at (4,5) — 2 squares apart.

@@ -27,8 +27,8 @@ export interface EncounterNode {
   themeClass: 'skirmish' | 'standard' | 'arena-test';
   /**
    * Hint for the board: which board setup function to use.
-   * 'initial' = standard makeInitialBoardState().
-   * 'skirmish' = future reduced roster (v1: same as initial).
+   * 'initial'  = standard makeInitialBoardState() — full 7-vs-7.
+   * 'skirmish' = makeSkirmishBoardState() — reduced 3-vs-3 (3.2).
    */
   boardSetup: 'initial' | 'skirmish';
   /** When true, route board combat through ArenaScene (requires ?arena=1 URL param) */
