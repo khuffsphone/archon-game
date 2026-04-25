@@ -503,6 +503,75 @@ export function makeSkirmishBoardState(): BoardState {
 }
 
 /**
+ * makeDragonsGateBoardState — 3.8 Dragon's Gate encounter
+ *
+ * A 4-vs-4 mid-game encounter where Dark fields its heaviest monsters.
+ * Light responds with mobility and ranged pressure.
+ *
+ * Roster:
+ *   Light:  Knight (warrior), Archer (ranged), Valkyrie (sentinel), Unicorn (fast)
+ *   Dark:   Dragon (heavy warrior), Manticore (warrior), Troll (regen tank), Banshee (caster)
+ *
+ * Tactical identity:
+ *   - Dark side has the highest total HP pool (Dragon 26, Troll 22, Manticore 20, Banshee 14 = 82)
+ *   - Light must use speed and range — straight brawls will favour Dark
+ *   - Power squares at (4,4) and (4,2)/(4,6) are mid-board — contested from turn 1
+ *   - Dark anchors wide at row 1 (Dragon/Manticore spread); Banshee + Troll form a wall at row 2
+ *   - Light spread at rows 6-7 gives room to pick a flank or push centre
+ *
+ * Layout:
+ *   Light: Knight (7,2), Unicorn (7,6), Valkyrie (7,4), Archer (6,4)
+ *   Dark:  Dragon (1,2), Manticore (1,6), Troll (2,4), Banshee (2,2)
+ *
+ * All pieces are drawn from ALPHA_ROSTER — no new assets required.
+ *
+ * Activate via CampaignMap → Dragon's Gate.
+ */
+export function makeDragonsGateBoardState(): BoardState {
+  const squares = makeEmptySquares();
+  const pieces: Record<string, BoardPiece> = {};
+
+  const gateRoster: Array<{ entry: RosterEntry; coord: BoardCoord }> = [
+    // ── Light faction — spread across rows 6–7 ─────────────────────────────
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-knight')!,   coord: { row: 7, col: 2 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-valkyrie')!, coord: { row: 7, col: 4 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-unicorn')!,  coord: { row: 7, col: 6 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'light-archer')!,   coord: { row: 6, col: 4 } },
+    // ── Dark faction — anchored at rows 1–2 ────────────────────────────────
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-dragon')!,    coord: { row: 1, col: 2 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-troll')!,     coord: { row: 2, col: 4 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-manticore')!, coord: { row: 1, col: 6 } },
+    { entry: ALPHA_ROSTER.find(e => e.pieceId === 'dark-banshee')!,   coord: { row: 2, col: 2 } },
+  ];
+
+  for (const { entry, coord } of gateRoster) {
+    const piece: BoardPiece = {
+      pieceId:  entry.pieceId,
+      name:     entry.name,
+      faction:  entry.faction,
+      role:     entry.role,
+      coord,
+      hp:       entry.hp,
+      maxHp:    entry.hp,
+      isDead:   false,
+      assetIds: entry.assetIds,
+    };
+    pieces[entry.pieceId] = piece;
+    squares[coord.row][coord.col].pieceId = entry.pieceId;
+  }
+
+  return {
+    phase:           'active',
+    turnFaction:     'light',
+    turnNumber:      1,
+    squares,
+    pieces,
+    selectedPieceId: null,
+    legalMoves:      [],
+  };
+}
+
+/**
  * makeAdjacentContestSetup
  * Deterministic contest test setup for Milestone C QA.
  * Places Knight (light) at (4,3) and Sorceress (dark) at (4,5) — 2 squares apart.

@@ -10,7 +10,7 @@
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type EncounterType = 'skirmish' | 'standard' | 'arena-test';
+export type EncounterType = 'skirmish' | 'standard' | 'dragons-gate' | 'arena-test';
 
 export interface EncounterNode {
   /** Unique encounter id */
@@ -24,13 +24,14 @@ export interface EncounterNode {
   /** Difficulty label shown on the card */
   difficultyLabel: string;
   /** CSS modifier class suffix */
-  themeClass: 'skirmish' | 'standard' | 'arena-test';
+  themeClass: 'skirmish' | 'standard' | 'dragons-gate' | 'arena-test';
   /**
    * Hint for the board: which board setup function to use.
-   * 'initial'  = standard makeInitialBoardState() — full 7-vs-7.
-   * 'skirmish' = makeSkirmishBoardState() — reduced 3-vs-3 (3.2).
+   * 'initial'      = standard makeInitialBoardState() — full 7-vs-7.
+   * 'skirmish'     = makeSkirmishBoardState() — reduced 3-vs-3 (3.2).
+   * 'dragons-gate' = makeDragonsGateBoardState() — 4-vs-4 heavy Dark (3.8).
    */
-  boardSetup: 'initial' | 'skirmish';
+  boardSetup: 'initial' | 'skirmish' | 'dragons-gate';
   /** When true, route board combat through ArenaScene (requires ?arena=1 URL param) */
   preferArena: boolean;
 }
@@ -39,34 +40,44 @@ export interface EncounterNode {
 
 export const ENCOUNTERS: EncounterNode[] = [
   {
-    id:             'skirmish',
-    title:          'Tutorial Skirmish',
-    subtitle:       'Learn the basics in a shorter engagement',
-    icon:           '🛡',
+    id:              'skirmish',
+    title:           'Tutorial Skirmish',
+    subtitle:        'Learn the basics in a shorter engagement',
+    icon:            '🛡',
     difficultyLabel: 'Beginner',
-    themeClass:     'skirmish',
-    boardSetup:     'skirmish',
-    preferArena:    false,
+    themeClass:      'skirmish',
+    boardSetup:      'skirmish',
+    preferArena:     false,
   },
   {
-    id:             'standard',
-    title:          'Standard Battle',
-    subtitle:       'A full 7-vs-7 engagement for strategic dominance',
-    icon:           '⚔',
+    id:              'standard',
+    title:           'Standard Battle',
+    subtitle:        'A full 7-vs-7 engagement for strategic dominance',
+    icon:            '⚔',
     difficultyLabel: 'Normal',
-    themeClass:     'standard',
-    boardSetup:     'initial',
-    preferArena:    false,
+    themeClass:      'standard',
+    boardSetup:      'initial',
+    preferArena:     false,
   },
   {
-    id:             'arena-test',
-    title:          'Arena Test',
-    subtitle:       'Skip straight to arena combat for a focused unit duel',
-    icon:           '🏟',
+    id:              'dragons-gate',
+    title:           "Dragon's Gate",
+    subtitle:        'Hold the line — Dark unleashes its heaviest monsters',
+    icon:            '🐉',
+    difficultyLabel: 'Hard',
+    themeClass:      'dragons-gate',
+    boardSetup:      'dragons-gate',
+    preferArena:     false,
+  },
+  {
+    id:              'arena-test',
+    title:           'Arena Test',
+    subtitle:        'Skip straight to arena combat for a focused unit duel',
+    icon:            '🏟',
     difficultyLabel: 'Varies',
-    themeClass:     'arena-test',
-    boardSetup:     'initial',
-    preferArena:    true,
+    themeClass:      'arena-test',
+    boardSetup:      'initial',
+    preferArena:     true,
   },
 ];
 

@@ -30,8 +30,8 @@ import {
 // ─── Encounter list shape ─────────────────────────────────────────────────────
 
 describe('3.0 — ENCOUNTERS list', () => {
-  it('has exactly 3 encounter nodes', () => {
-    expect(ENCOUNTERS).toHaveLength(3);
+  it('has exactly 4 encounter nodes', () => {
+    expect(ENCOUNTERS).toHaveLength(4);
   });
 
   it('contains skirmish, standard, and arena-test nodes', () => {
@@ -74,8 +74,8 @@ describe('3.0 — ENCOUNTERS list', () => {
 // ─── Field validation ─────────────────────────────────────────────────────────
 
 describe('3.0 — encounter field constraints', () => {
-  const VALID_THEME_CLASSES: EncounterNode['themeClass'][] = ['skirmish', 'standard', 'arena-test'];
-  const VALID_BOARD_SETUPS:  EncounterNode['boardSetup'][] = ['initial', 'skirmish'];
+  const VALID_THEME_CLASSES: EncounterNode['themeClass'][] = ['skirmish', 'standard', 'dragons-gate', 'arena-test'];
+  const VALID_BOARD_SETUPS:  EncounterNode['boardSetup'][] = ['initial', 'skirmish', 'dragons-gate'];
 
   it('every encounter has a valid themeClass', () => {
     for (const enc of ENCOUNTERS) {
@@ -175,9 +175,9 @@ describe('3.0 — getEncounter()', () => {
 // ─── Campaign flow integrity (data level) ────────────────────────────────────
 
 describe('3.0 — campaign flow data integrity', () => {
-  it('every encounter that is not preferArena has boardSetup = initial or skirmish', () => {
+  it('every encounter that is not preferArena has a valid boardSetup', () => {
     for (const enc of ENCOUNTERS.filter(e => !e.preferArena)) {
-      expect(['initial', 'skirmish']).toContain(enc.boardSetup);
+      expect(['initial', 'skirmish', 'dragons-gate']).toContain(enc.boardSetup);
     }
   });
 
@@ -189,10 +189,11 @@ describe('3.0 — campaign flow data integrity', () => {
     }
   });
 
-  it('ENCOUNTERS is ordered: skirmish first, standard second, arena-test third', () => {
+  it('ENCOUNTERS is ordered: skirmish, standard, dragons-gate, arena-test', () => {
     expect(ENCOUNTERS[0].id).toBe('skirmish');
     expect(ENCOUNTERS[1].id).toBe('standard');
-    expect(ENCOUNTERS[2].id).toBe('arena-test');
+    expect(ENCOUNTERS[2].id).toBe('dragons-gate');
+    expect(ENCOUNTERS[3].id).toBe('arena-test');
   });
 });
 // ─── 3.1-rc: RC polish regression tests ─────────────────────────────────────

@@ -352,9 +352,23 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   white-space: nowrap;
 }
 /* Per-theme badge colors */
-.encounter-node--skirmish    .encounter-node__badge { color: hsl(185,70%,60%); border-color: hsl(185,60%,30%,0.6); }
-.encounter-node--standard    .encounter-node__badge { color: hsl(43,80%,60%);  border-color: hsl(43,70%,30%,0.6);  }
-.encounter-node--arena-test  .encounter-node__badge { color: hsl(280,65%,65%); border-color: hsl(280,55%,35%,0.6); }
+.encounter-node--skirmish     .encounter-node__badge { color: hsl(185,70%,60%); border-color: hsl(185,60%,30%,0.6); }
+.encounter-node--standard     .encounter-node__badge { color: hsl(43,80%,60%);  border-color: hsl(43,70%,30%,0.6);  }
+.encounter-node--dragons-gate .encounter-node__badge { color: hsl(12,85%,62%);  border-color: hsl(12,75%,30%,0.6);  }
+.encounter-node--arena-test   .encounter-node__badge { color: hsl(280,65%,65%); border-color: hsl(280,55%,35%,0.6); }
+
+/* 3.8: Dragon's Gate — per-theme selected state */
+.encounter-node--dragons-gate.encounter-node--selected {
+  border-color: hsl(12,80%,50%);
+  box-shadow: 0 0 24px hsl(12,80%,40%,0.35);
+}
+.encounter-node--dragons-gate {
+  border-color: rgba(200,80,30,0.25);
+}
+.encounter-node--dragons-gate:hover {
+  border-color: hsl(12,75%,45%,0.6);
+  box-shadow: 0 0 16px hsl(12,80%,40%,0.2);
+}
 
 .encounter-node__check {
   position: absolute; top: 10px; right: 16px;
@@ -437,9 +451,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   color: var(--text-muted);
   white-space: nowrap;
 }
-.encounter-badge--skirmish   { color: hsl(185,70%,62%); border-color: hsl(185,60%,30%,0.5); }
-.encounter-badge--standard   { color: hsl(43,80%,62%);  border-color: hsl(43,70%,30%,0.5);  }
-.encounter-badge--arena-test { color: hsl(280,65%,70%); border-color: hsl(280,55%,35%,0.5); }
+.encounter-badge--skirmish    { color: hsl(185,70%,62%); border-color: hsl(185,60%,30%,0.5); }
+.encounter-badge--standard    { color: hsl(43,80%,62%);  border-color: hsl(43,70%,30%,0.5);  }
+.encounter-badge--dragons-gate { color: hsl(12,80%,65%); border-color: hsl(12,70%,30%,0.5); }
+.encounter-badge--arena-test  { color: hsl(280,65%,70%); border-color: hsl(280,55%,35%,0.5); }
 
 /* ═══════════════════════════════════════════════════════════════ */
 

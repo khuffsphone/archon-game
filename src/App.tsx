@@ -19,6 +19,7 @@ import {
   makeGameOverSetup,
   makeDarkWinsSetup,
   makeSkirmishBoardState,
+  makeDragonsGateBoardState,
 } from './features/board/boardState';
 import {
   saveGame, loadGame, clearSave, hasSavedGame,
@@ -201,11 +202,11 @@ export default function App() {
         completedIds={progress.completedIds}
         onLaunch={(enc) => {
           setActiveEncounter(enc);
-          // 3.2: Use the correct board setup for each encounter type
+          // 3.2 / 3.8: Use the correct board setup for each encounter type
           const initialState =
-            enc.boardSetup === 'skirmish'
-              ? makeSkirmishBoardState()
-              : getInitialBoardState();
+            enc.boardSetup === 'skirmish'     ? makeSkirmishBoardState()
+            : enc.boardSetup === 'dragons-gate' ? makeDragonsGateBoardState()
+            : getInitialBoardState();
           setBoardStateRaw(initialState);
           setBoardLog([`⚔ Encounter: ${enc.title}`]);
           setMode('board');
