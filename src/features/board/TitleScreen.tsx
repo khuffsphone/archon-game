@@ -191,7 +191,7 @@ export function TitleScreen({ hasSave, onNewGame, onContinue }: Props) {
         </section>
 
         <footer className="title-footer">
-          <span>Archon v3.1-rc · Headless Studios · {new Date().getFullYear()}</span>
+          <span>Archon v3.3 · Headless Studios · {new Date().getFullYear()}</span>
         </footer>
       </div>
     </div>
