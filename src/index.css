@@ -395,6 +395,33 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   white-space: nowrap;
 }
 
+/* 3.9: Locked encounter node */
+.encounter-node--locked {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.55);
+  border-color: rgba(255,255,255,0.05) !important;
+  background: rgba(255,255,255,0.02) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.encounter-node--locked:hover {
+  background: rgba(255,255,255,0.02) !important;
+  border-color: rgba(255,255,255,0.07) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.encounter-node--locked .encounter-node__icon {
+  opacity: 0.7;
+}
+.encounter-node--locked .encounter-node__title {
+  color: var(--text-muted);
+}
+.encounter-node--locked .encounter-node__badge {
+  color: hsl(0,0%,35%) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
 /* 3.5: Clear Progress control */
 .campaign-clear-progress {
   display: flex; justify-content: center;

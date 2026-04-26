@@ -118,15 +118,17 @@ describe('3.5 — markEncounterComplete()', () => {
     expect(ref).toBe(once); // exact same object — no mutation
   });
 
-  it('can mark all 3 encounter types independently', () => {
+  it('can mark all 4 encounter types independently', () => {
     let p = empty;
     p = markEncounterComplete(p, 'skirmish');
     p = markEncounterComplete(p, 'standard');
+    p = markEncounterComplete(p, 'dragons-gate');
     p = markEncounterComplete(p, 'arena-test');
     expect(p.completedIds).toContain('skirmish');
     expect(p.completedIds).toContain('standard');
+    expect(p.completedIds).toContain('dragons-gate');
     expect(p.completedIds).toContain('arena-test');
-    expect(p.completedIds).toHaveLength(3);
+    expect(p.completedIds).toHaveLength(4);
   });
 
   it('preserves existing completedIds when adding a new one', () => {
@@ -292,9 +294,10 @@ describe('3.5 — completed encounters remain replayable', () => {
     let p: CampaignProgressPayload = { progressVersion: PROGRESS_VERSION, completedIds: [] };
     p = markEncounterComplete(p, 'skirmish');
     p = markEncounterComplete(p, 'standard');
+    p = markEncounterComplete(p, 'dragons-gate');
     p = markEncounterComplete(p, 'arena-test');
-    // All 3 are still accessible by checking completedIds
-    expect(p.completedIds).toHaveLength(3);
+    // All 4 are still accessible by checking completedIds
+    expect(p.completedIds).toHaveLength(4);
     // A caller may still launch any encounter — the data model has no gate
     expect(p.completedIds.includes('skirmish')).toBe(true);
   });

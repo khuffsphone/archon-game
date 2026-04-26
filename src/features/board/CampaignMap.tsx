@@ -6,12 +6,15 @@
  *
  * Design constraints:
  *  - No new asset dependencies — emoji + CSS only.
- *  - No branching campaign logic.
  *  - All encounters route to the existing board game.
  *  - Back button returns to TitleScreen.
+ *
+ * 3.9: Unlock gates — locked encounters show a lock icon, requirement
+ * text, and a disabled card. They cannot be selected or launched.
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import { ENCOUNTERS, type EncounterNode, type EncounterType } from './campaignConfig';
+import { UNLOCK_PREREQUISITES } from './campaignProgress';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -22,27 +25,53 @@ interface Props {
   onBack:    () => void;
   /** 3.5: Set of completed encounter ids from campaign progression */
   completedIds?: string[];
+  /** 3.9: Set of unlocked encounter ids (derived from progress in App.tsx) */
+  unlockedIds?: string[];
   /** 3.5: Called when player clears all progression state */
   onClearProgress?: () => void;
 }
 
+// ─── Requirement label helper ─────────────────────────────────────────────────
+
+/** Returns human-readable requirement text for a locked encounter, or null. */
+function getRequirementLabel(id: EncounterType): string | null {
+  const prereq = UNLOCK_PREREQUISITES[id];
+  if (!prereq) return null;
+  const prereqEnc = ENCOUNTERS.find(e => e.id === prereq);
+  return prereqEnc ? `Complete ${prereqEnc.title} to unlock` : 'Locked';
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CampaignMap({ onLaunch, onBack, completedIds = [], onClearProgress }: Props) {
+export function CampaignMap({
+  onLaunch,
+  onBack,
+  completedIds  = [],
+  unlockedIds,
+  onClearProgress,
+}: Props) {
+  // Default: all unlocked (backward-compatible when prop is omitted)
+  const effectiveUnlocked = unlockedIds ?? ENCOUNTERS.map(e => e.id);
+
   const [selected, setSelected] = useState<EncounterType | null>(null);
   const [exiting, setExiting]   = useState(false);
 
+  const isLocked = (id: EncounterType) => !effectiveUnlocked.includes(id);
+
   const handleSelect = (id: EncounterType) => {
-    setSelected(id === selected ? null : id); // toggle deselects
+    if (isLocked(id)) return; // locked — no selection
+    setSelected(id === selected ? null : id);
   };
 
   const handleLaunch = useCallback(() => {
     if (!selected || exiting) return;
+    if (isLocked(selected)) return; // safety guard
     const enc = ENCOUNTERS.find(e => e.id === selected);
     if (!enc) return;
     setExiting(true);
     setTimeout(() => onLaunch(enc), 500);
-  }, [selected, exiting, onLaunch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, exiting, onLaunch, effectiveUnlocked]);
 
   const handleBack = useCallback(() => {
     if (exiting) return;
@@ -95,6 +124,8 @@ export function CampaignMap({ onLaunch, onBack, completedIds = [], onClearProgre
           {ENCOUNTERS.map((enc) => {
             const isSelected  = selected === enc.id;
             const isCompleted = completedIds.includes(enc.id);
+            const locked      = isLocked(enc.id);
+            const reqLabel    = locked ? getRequirementLabel(enc.id) : null;
             return (
               <button
                 key={enc.id}
@@ -105,24 +136,30 @@ export function CampaignMap({ onLaunch, onBack, completedIds = [], onClearProgre
                   `encounter-node--${enc.themeClass}`,
                   isSelected  ? 'encounter-node--selected'  : '',
                   isCompleted ? 'encounter-node--completed'  : '',
+                  locked      ? 'encounter-node--locked'     : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => handleSelect(enc.id)}
-                aria-pressed={isSelected}
+                disabled={locked}
+                aria-pressed={locked ? undefined : isSelected}
+                aria-disabled={locked ? true : undefined}
+                aria-label={locked ? `${enc.title} — ${reqLabel ?? 'Locked'}` : enc.title}
               >
                 <span className="encounter-node__icon" aria-hidden="true">
-                  {enc.icon}
+                  {locked ? '🔒' : enc.icon}
                 </span>
                 <div className="encounter-node__body">
                   <strong className="encounter-node__title">{enc.title}</strong>
-                  <p className="encounter-node__subtitle">{enc.subtitle}</p>
+                  <p className="encounter-node__subtitle">
+                    {locked && reqLabel ? reqLabel : enc.subtitle}
+                  </p>
                 </div>
                 <span className="encounter-node__badge">{enc.difficultyLabel}</span>
-                {isCompleted && (
+                {isCompleted && !locked && (
                   <span className="encounter-node__completed-badge" aria-label="Completed">
                     ✓ Completed
                   </span>
                 )}
-                {isSelected && !isCompleted && (
+                {isSelected && !isCompleted && !locked && (
                   <span className="encounter-node__check" aria-hidden="true">✓</span>
                 )}
               </button>

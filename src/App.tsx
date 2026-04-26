@@ -27,8 +27,10 @@ import {
 import type { EncounterNode } from './features/board/campaignConfig';
 import {
   loadProgress, saveProgress, markEncounterComplete, clearProgress,
+  isEncounterUnlocked,
   type CampaignProgressPayload,
 } from './features/board/campaignProgress';
+import { ENCOUNTERS } from './features/board/campaignConfig';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -195,11 +197,15 @@ export default function App() {
     );
   }
 
-  // 3.0 / 3.5: Campaign Map — encounter selection with completed state
+  // 3.0 / 3.5 / 3.9: Campaign Map — encounter selection with completed + unlocked state
   if (mode === 'campaign') {
+    const unlockedIds = ENCOUNTERS
+      .filter(enc => isEncounterUnlocked(progress, enc.id))
+      .map(enc => enc.id);
     return (
       <CampaignMap
         completedIds={progress.completedIds}
+        unlockedIds={unlockedIds}
         onLaunch={(enc) => {
           setActiveEncounter(enc);
           // 3.2 / 3.8: Use the correct board setup for each encounter type

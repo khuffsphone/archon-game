@@ -7,7 +7,8 @@
  *  - Separate key from board save (archon:progress:v1).
  *  - Shape: { progressVersion: 1, completedIds: string[] }
  *  - Completed = Light wins a board game with that encounter active.
- *  - No unlock gates — all encounters remain replayable.
+ *  - 3.9: Unlock gates are derived from completedIds — not stored in the payload.
+ *    isEncounterUnlocked() computes unlock state from UNLOCK_PREREQUISITES.
  *  - Corrupt / stale data is silently discarded and replaced with empty state.
  *  - clearProgress() wipes only the progression key, not the board save.
  */
@@ -90,6 +91,41 @@ export function isEncounterComplete(
   id: EncounterType,
 ): boolean {
   return progress.completedIds.includes(id);
+}
+
+// ─── Unlock gates (3.9) ───────────────────────────────────────────────────────
+
+/**
+ * Maps each encounter id to the prerequisite encounter that must be completed
+ * before it unlocks. If an id is absent from this map (or maps to null), the
+ * encounter is unlocked by default.
+ *
+ * Unlock chain:
+ *   Tutorial Skirmish  → always available
+ *   Standard Battle    → requires Tutorial Skirmish completed
+ *   Dragon's Gate      → requires Standard Battle completed
+ *   Arena Test         → always available (QA sandbox)
+ */
+export const UNLOCK_PREREQUISITES: Partial<Record<EncounterType, EncounterType>> = {
+  'standard':     'skirmish',
+  'dragons-gate': 'standard',
+} as const;
+
+/**
+ * Pure function: returns true if the given encounter is unlocked given the
+ * current progress. An encounter is unlocked when:
+ *  - It has no prerequisite in UNLOCK_PREREQUISITES, OR
+ *  - Its prerequisite encounter is in completedIds.
+ *
+ * This is derived state — unlock status is never persisted.
+ */
+export function isEncounterUnlocked(
+  progress: CampaignProgressPayload,
+  id: EncounterType,
+): boolean {
+  const prereq = UNLOCK_PREREQUISITES[id];
+  if (!prereq) return true; // no prerequisite → always unlocked
+  return progress.completedIds.includes(prereq);
 }
 
 // ─── Clear ────────────────────────────────────────────────────────────────────
