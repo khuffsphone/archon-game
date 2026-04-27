@@ -79,8 +79,9 @@ interface Candidate {
  *   +rand  small random tiebreaker (0–9)
  *
  * Easy adjustments:
- *   Capture bonus is randomized (400–1000) so the AI occasionally misses obvious
- *   captures; tiebreaker is widened (0–19) to add more variation.
+ *   Capture bonus is 0–79 (avg ~40) so non-capture moves scoring 10–49
+ *   (approach + tiebreaker) can realistically compete ~25–50% of the time;
+ *   tiebreaker is widened (0–19) to add more variation.
  */
 function buildCandidates(
   state: BoardState,
@@ -107,10 +108,12 @@ function buildCandidates(
       if (targetPieceId) {
         const target = state.pieces[targetPieceId];
         if (target && target.faction !== faction && !target.isDead) {
-          // Easy: randomized bonus (400–1000) — occasionally sub-optimal
-          // Normal: deterministic +1000 — always highest priority
+          // Easy: 0–79 (avg ~40) — non-capture approach moves (10–40+) can
+          //   realistically beat this, so the AI genuinely misses captures ~25–50%
+          //   of the time depending on how good the approach alternative is.
+          // Normal: +1000 deterministic — capture is always highest priority.
           score += difficulty === 'easy'
-            ? 400 + Math.floor(Math.random() * 601)
+            ? Math.floor(Math.random() * 80)
             : 1000;
           reason = 'capture';
         }

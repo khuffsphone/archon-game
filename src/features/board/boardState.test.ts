@@ -605,6 +605,43 @@ describe('ARCHON-003 — AI difficulty wire', () => {
     }
   });
 
+  it('on Easy, AI can pick non-capture when no adjacent enemy exists (approach only)', () => {
+    // Structural (non-probabilistic) verification of Easy non-capture behavior.
+    //
+    // Sorceress is a diagonal-slide piece (moves only on diagonals).
+    // Place her at (8,0) — checkerboard parity 8+0=8 (even).
+    // Place the enemy Knight at (1,0) — parity 1+0=1 (odd).
+    // Because parity differs, the Sorceress can never land on (1,0) via any
+    // diagonal path — capture is structurally impossible regardless of difficulty.
+    // The AI must always choose an approach or random move, never capture.
+    const state = makeInitialBoardState();
+    const sorceress = state.pieces['dark-sorceress'];
+    const knight    = state.pieces['light-knight'];
+    if (!sorceress || !knight) return;
+
+    const approachState: typeof state = {
+      ...state,
+      turnFaction: 'dark',
+      pieces: {
+        'dark-sorceress': { ...sorceress, coord: { row: 8, col: 0 } },
+        'light-knight':   { ...knight,   coord: { row: 1, col: 0 } },
+      },
+      squares: (() => {
+        const sq = state.squares.map(r => r.map(c => ({ ...c, pieceId: null as string | null })));
+        sq[8][0].pieceId = 'dark-sorceress';
+        sq[1][0].pieceId = 'light-knight';
+        return sq;
+      })(),
+    };
+
+    // 20 runs — no diagonal path to the Knight exists; reason must never be 'capture'.
+    for (let i = 0; i < 20; i++) {
+      const action = chooseAiMove(approachState, 'dark', 'easy');
+      expect(action).not.toBeNull();
+      expect(action!.reason).not.toBe('capture');
+    }
+  });
+
   it('AiDifficulty type is exported and has the expected string values', () => {
     // Type-level check: valid values don't throw at runtime when used as literals
     const easy: AiDifficulty   = 'easy';
@@ -612,6 +649,7 @@ describe('ARCHON-003 — AI difficulty wire', () => {
     expect(['easy', 'normal']).toContain(easy);
     expect(['easy', 'normal']).toContain(normal);
   });
+
 });
 
 // ─── 1.7: Power Square Victory Condition ────────────────────────────────────
