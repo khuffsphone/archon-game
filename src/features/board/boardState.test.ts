@@ -933,4 +933,70 @@ describe('0.8/0.9/0.10 — Imprisonment tick and healAlly', () => {
     expect(HEAL_AMOUNT).toBeGreaterThan(0);
     expect(Number.isInteger(HEAL_AMOUNT)).toBe(true);
   });
+
+  // ── ARCHON-002: multi-target heal picker regression ───────────────────────
+
+  it('getAdjacentHealTargets returns all eligible adjacent allies, not just first', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',    faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-prisoner',  faction: 'light', coord: { row: 4, col: 3 },
+        extras: { imprisoned: true } },
+      { pieceId: 'light-wounded',   faction: 'light', coord: { row: 4, col: 5 },
+        extras: { hp: 5 } },
+    ]);
+
+    const targets = getAdjacentHealTargets(state, 'light-caster');
+    // Both the imprisoned piece and the wounded piece must appear in the result
+    expect(targets).toContain('light-prisoner');
+    expect(targets).toContain('light-wounded');
+    expect(targets.length).toBe(2);
+  });
+
+  it('healAlly can target the second adjacent ally (non-zero index)', () => {
+    // Verify the heal engine correctly heals an explicitly specified target,
+    // not always the first result from getAdjacentHealTargets.
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',    faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-prisoner',  faction: 'light', coord: { row: 4, col: 3 },
+        extras: { imprisoned: true } },
+      { pieceId: 'light-wounded',   faction: 'light', coord: { row: 4, col: 5 },
+        extras: { hp: 5 } },
+    ]);
+
+    // Explicitly pick the wounded ally (not the imprisoned one)
+    const after = healAlly(state, 'light-caster', 'light-wounded');
+
+    const healed   = after.pieces['light-wounded'] as BoardPieceState;
+    const untouched = after.pieces['light-prisoner'] as BoardPieceState;
+
+    // Wounded ally should have more HP after heal
+    expect(healed.hp).toBeGreaterThan(5);
+    // Imprisoned ally should still be imprisoned (we didn't pick it)
+    expect(untouched.imprisoned).toBe(true);
+    // Turn should have advanced (heal counts as a board turn)
+    expect(after.turnFaction).toBe('dark');
+  });
+
+  it('healAlly can target the imprisoned ally while a wounded ally is also present', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',    faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-prisoner',  faction: 'light', coord: { row: 4, col: 3 },
+        extras: { imprisoned: true } },
+      { pieceId: 'light-wounded',   faction: 'light', coord: { row: 4, col: 5 },
+        extras: { hp: 5 } },
+    ]);
+
+    // Explicitly pick the imprisoned ally
+    const after = healAlly(state, 'light-caster', 'light-prisoner');
+
+    const cured    = after.pieces['light-prisoner'] as BoardPieceState;
+    const untouched = after.pieces['light-wounded'] as BoardPieceState;
+
+    // Imprisoned ally must be freed
+    expect(cured.imprisoned).toBeFalsy();
+    // Wounded ally's HP is unchanged (we didn't heal it)
+    expect(untouched.hp).toBe(5);
+    // Turn advanced
+    expect(after.turnFaction).toBe('dark');
+  });
 });
