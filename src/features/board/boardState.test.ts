@@ -23,11 +23,17 @@ import {
   getMoveProfileLabel,
   getGameOverMeta,
   selectPiece,
+  deselectPiece,
   executeMove,
+  applyCombatResult,
+  healAlly,
+  getAdjacentHealTargets,
+  getAdjacentImprisonedAllies,
+  IMPRISONMENT_TURNS,
+  HEAL_AMOUNT,
 } from './boardState';
-import type { BoardPieceState, BoardStateWithMeta } from './boardState';
+import type { BoardPieceState } from './boardState';
 import type { BoardState, CombatResultPayload } from '../../lib/board-combat-contract';
-import { applyCombatResult } from './boardState';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -652,5 +658,279 @@ describe('1.7 — Power square victory condition', () => {
     const meta = getGameOverMeta(s.pieces, s.squares);
     expect(meta?.reason).toBe('power_squares_controlled');
     expect(meta?.winnerFaction).toBe('light');
+  });
+});
+
+// ─── 0.8/0.9/0.10 — Imprisonment tick & healAlly ─────────────────────────────
+
+describe('0.8/0.9/0.10 — Imprisonment tick and healAlly', () => {
+  /**
+   * Build a minimal BoardState containing exactly the given pieces.
+   * Every square defaults to empty; each entry places its piece.
+   */
+  function makeMinimalState(
+    entries: Array<{
+      pieceId: string;
+      faction: 'light' | 'dark';
+      coord: { row: number; col: number };
+      extras?: Partial<BoardPieceState>;
+    }>,
+    turnFaction: 'light' | 'dark' = 'light',
+  ): BoardState {
+    const base = makeInitialBoardState();
+    const squares = base.squares.map(r =>
+      r.map(sq => ({ ...sq, pieceId: null as string | null }))
+    );
+    const pieces: Record<string, BoardPieceState> = {};
+    for (const e of entries) {
+      squares[e.coord.row][e.coord.col].pieceId = e.pieceId;
+      pieces[e.pieceId] = makePiece({
+        pieceId: e.pieceId,
+        faction: e.faction,
+        coord: e.coord,
+        ...e.extras,
+      });
+    }
+    return { ...base, squares, pieces, turnFaction, selectedPieceId: null, legalMoves: [] };
+  }
+
+  // ── 0.8: tick via executeMove ─────────────────────────────────────────────
+
+  it('executeMove ticks imprisonment counter for acting faction (2 → 1)', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-mover',    faction: 'light', coord: { row: 5, col: 5 } },
+      { pieceId: 'light-prisoner', faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const selected = selectPiece(state, 'light-mover');
+    const result   = executeMove(selected, { row: 5, col: 6 });
+
+    expect(result.type).toBe('move');
+    const prisoner = result.nextState.pieces['light-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisoned).toBe(true);
+    expect(prisoner.imprisonedTurnsRemaining).toBe(1);
+  });
+
+  it('executeMove clears imprisonment when counter reaches zero (1 → 0)', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-mover',    faction: 'light', coord: { row: 5, col: 5 } },
+      { pieceId: 'light-prisoner', faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 1 } },
+    ]);
+
+    const selected = selectPiece(state, 'light-mover');
+    const result   = executeMove(selected, { row: 5, col: 6 });
+
+    expect(result.type).toBe('move');
+    const prisoner = result.nextState.pieces['light-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisoned).toBe(false);
+    expect(prisoner.imprisonedTurnsRemaining).toBeUndefined();
+  });
+
+  it('executeMove does NOT tick the opposing faction imprisonment counter', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-mover',   faction: 'light', coord: { row: 5, col: 5 } },
+      { pieceId: 'dark-prisoner', faction: 'dark',  coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const selected = selectPiece(state, 'light-mover');
+    const result   = executeMove(selected, { row: 5, col: 6 });
+
+    expect(result.type).toBe('move');
+    const prisoner = result.nextState.pieces['dark-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisonedTurnsRemaining).toBe(2); // unchanged
+  });
+
+  // ── 0.8: tick via applyCombatResult ──────────────────────────────────────
+
+  it('applyCombatResult ticks imprisonment counter for the attacker faction', () => {
+    const lightKnight   = makePiece({ pieceId: 'light-knight',   faction: 'light', coord: { row: 4, col: 3 } });
+    const darkSorceress = makePiece({ pieceId: 'dark-sorceress', faction: 'dark',  coord: { row: 4, col: 5 } });
+    const lightPrisoner = makePiece({
+      pieceId: 'light-prisoner', faction: 'light', coord: { row: 0, col: 0 },
+      imprisoned: true, imprisonedTurnsRemaining: 2,
+    });
+
+    const base = makeInitialBoardState();
+    const squares = base.squares.map(r => r.map(sq => ({ ...sq, pieceId: null as string | null })));
+    squares[4][3].pieceId = 'light-knight';
+    squares[4][5].pieceId = 'dark-sorceress';
+    squares[0][0].pieceId = 'light-prisoner';
+
+    const state: BoardState = {
+      ...base, squares,
+      pieces: { 'light-knight': lightKnight, 'dark-sorceress': darkSorceress, 'light-prisoner': lightPrisoner },
+      turnFaction: 'light',
+      selectedPieceId: 'light-knight',
+      legalMoves: [],
+    };
+
+    const combatResult: CombatResultPayload = {
+      contestedSquare: { row: 4, col: 5 },
+      outcome: 'attacker_wins',
+      survivingAttacker: { ...lightKnight, coord: { row: 4, col: 5 }, hp: 18 },
+      survivingDefender: null,
+      vfxHint: 'death_dark',
+    };
+
+    const after = applyCombatResult(state, combatResult);
+    const prisoner = after.pieces['light-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisoned).toBe(true);
+    expect(prisoner.imprisonedTurnsRemaining).toBe(1); // ticked 2 → 1
+  });
+
+  // ── 0.9/0.10: healAlly ───────────────────────────────────────────────────
+
+  it('healAlly ticks OTHER imprisoned allies before curing the chosen target', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',    faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-target',    faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+      { pieceId: 'light-bystander', faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const after = healAlly(state, 'light-caster', 'light-target');
+
+    const target = after.pieces['light-target'] as BoardPieceState;
+    expect(target.imprisoned).toBe(false);
+    expect(target.imprisonedTurnsRemaining).toBeUndefined();
+
+    const bystander = after.pieces['light-bystander'] as BoardPieceState;
+    expect(bystander.imprisoned).toBe(true);
+    expect(bystander.imprisonedTurnsRemaining).toBe(1); // ticked 2 → 1
+  });
+
+  it('healAlly cures target unconditionally — counter of 2 does not block release', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster', faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-target', faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const after = healAlly(state, 'light-caster', 'light-target');
+    const target = after.pieces['light-target'] as BoardPieceState;
+    expect(target.imprisoned).toBe(false);
+    expect(target.imprisonedTurnsRemaining).toBeUndefined();
+  });
+
+  it('healAlly restores HP by HEAL_AMOUNT, capped at maxHp', () => {
+    const maxHp = 10;
+    const state = makeMinimalState([
+      { pieceId: 'light-caster', faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-target', faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 1, hp: maxHp - 1, maxHp } },
+    ]);
+
+    const after = healAlly(state, 'light-caster', 'light-target');
+    const target = after.pieces['light-target'] as BoardPieceState;
+    expect(target.hp).toBe(maxHp); // clamped — not maxHp - 1 + HEAL_AMOUNT
+  });
+
+  it('healAlly restores exactly HEAL_AMOUNT HP when headroom is sufficient', () => {
+    const maxHp = 20;
+    const initialHp = 5;
+    const state = makeMinimalState([
+      { pieceId: 'light-caster', faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-target', faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 1, hp: initialHp, maxHp } },
+    ]);
+
+    const after = healAlly(state, 'light-caster', 'light-target');
+    const target = after.pieces['light-target'] as BoardPieceState;
+    expect(target.hp).toBe(initialHp + HEAL_AMOUNT);
+  });
+
+  it('healAlly advances the turn to the opposing faction', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster', faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-target', faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 1 } },
+    ]);
+
+    const after = healAlly(state, 'light-caster', 'light-target');
+    expect(after.turnFaction).toBe('dark');
+    expect(after.selectedPieceId).toBeNull();
+    expect(after.legalMoves).toHaveLength(0);
+  });
+
+  // ── Non-turn actions must not tick ───────────────────────────────────────
+
+  it('selectPiece does not tick imprisonment counters', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-mobile',   faction: 'light', coord: { row: 5, col: 5 } },
+      { pieceId: 'light-prisoner', faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const after = selectPiece(state, 'light-mobile');
+    const prisoner = after.pieces['light-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisonedTurnsRemaining).toBe(2);
+  });
+
+  it('deselectPiece does not tick imprisonment counters', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-mobile',   faction: 'light', coord: { row: 5, col: 5 } },
+      { pieceId: 'light-prisoner', faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true, imprisonedTurnsRemaining: 2 } },
+    ]);
+
+    const selected = selectPiece(state, 'light-mobile');
+    const after    = deselectPiece(selected);
+    const prisoner = after.pieces['light-prisoner'] as BoardPieceState;
+    expect(prisoner.imprisonedTurnsRemaining).toBe(2);
+  });
+
+  // ── getAdjacentHealTargets / getAdjacentImprisonedAllies ─────────────────
+
+  it('getAdjacentHealTargets includes imprisoned ally within 1 square', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',   faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-adjacent', faction: 'light', coord: { row: 4, col: 5 },
+        extras: { imprisoned: true } },
+      { pieceId: 'light-far',      faction: 'light', coord: { row: 0, col: 0 },
+        extras: { imprisoned: true } },
+    ]);
+
+    const targets = getAdjacentHealTargets(state, 'light-caster');
+    expect(targets).toContain('light-adjacent');
+    expect(targets).not.toContain('light-far');
+  });
+
+  it('getAdjacentHealTargets excludes enemy pieces even if imprisoned', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',  faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'dark-adjacent', faction: 'dark',  coord: { row: 4, col: 5 },
+        extras: { imprisoned: true } },
+    ]);
+
+    const targets = getAdjacentHealTargets(state, 'light-caster');
+    expect(targets).not.toContain('dark-adjacent');
+  });
+
+  it('getAdjacentImprisonedAllies excludes non-imprisoned adjacent allies', () => {
+    const state = makeMinimalState([
+      { pieceId: 'light-caster',   faction: 'light', coord: { row: 4, col: 4 } },
+      { pieceId: 'light-healthy',  faction: 'light', coord: { row: 4, col: 5 } },
+      { pieceId: 'light-prisoner', faction: 'light', coord: { row: 4, col: 3 },
+        extras: { imprisoned: true } },
+    ]);
+
+    const allies = getAdjacentImprisonedAllies(state, 'light-caster');
+    expect(allies).toContain('light-prisoner');
+    expect(allies).not.toContain('light-healthy');
+  });
+
+  // ── Constants ─────────────────────────────────────────────────────────────
+
+  it('IMPRISONMENT_TURNS equals 2', () => {
+    expect(IMPRISONMENT_TURNS).toBe(2);
+  });
+
+  it('HEAL_AMOUNT is a positive integer', () => {
+    expect(HEAL_AMOUNT).toBeGreaterThan(0);
+    expect(Number.isInteger(HEAL_AMOUNT)).toBe(true);
   });
 });
