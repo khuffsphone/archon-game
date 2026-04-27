@@ -1110,6 +1110,41 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .sidebar-heal-btn:active { transform: translateY(0); box-shadow: 0 0 6px hsla(162,60%,40%,0.3); }
 
+/* ARCHON-002: Multi-target heal picker */
+.sidebar-heal-targets {
+  margin-top: 8px; width: 100%;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.sidebar-heal-targets-header {
+  font: 700 10px 'Cinzel', serif; letter-spacing: 0.06em;
+  color: hsl(162,65%,62%); text-transform: uppercase;
+  margin-bottom: 2px; opacity: 0.85;
+}
+.sidebar-heal-target-btn {
+  width: 100%; padding: 6px 8px; border-radius: 6px; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  background: linear-gradient(135deg, hsl(162,50%,16%), hsl(180,45%,13%));
+  border: 1px solid hsl(162,45%,28%,0.55);
+  transition: box-shadow 0.18s ease, transform 0.12s ease, background 0.18s ease;
+  text-align: left;
+}
+.sidebar-heal-target-btn:hover {
+  background: linear-gradient(135deg, hsl(162,60%,22%), hsl(180,55%,19%));
+  box-shadow: 0 0 12px hsla(162,65%,45%,0.55);
+  transform: translateY(-1px);
+}
+.sidebar-heal-target-btn:active { transform: translateY(0); box-shadow: none; }
+.heal-target-name {
+  font: 700 12px 'Cinzel', serif; color: hsl(162,80%,78%); letter-spacing: 0.03em; line-height: 1.2;
+}
+.heal-target-state {
+  font: 400 10px 'Inter', sans-serif; color: hsl(43,80%,62%); line-height: 1.2;
+}
+.heal-target-action {
+  font: 600 10px 'Inter', sans-serif; color: hsl(162,65%,55%); line-height: 1.2;
+}
+
+
 /* 1.0: Board event log */
 .board-log {
   position: fixed; left: 0; bottom: 0; width: 260px;

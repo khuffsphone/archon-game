@@ -456,7 +456,29 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
               ? getAdjacentHealTargets(board, board.selectedPieceId!)
               : [];
             const canHeal = healTargets.length > 0;
-            // Compute label: show whether we're curing imprisonment and/or restoring HP
+
+            // ── Heal dispatcher — shared by single-button and multi-picker ─────
+            function handleHeal(targetId: string) {
+              const caster = board.selectedPieceId!;
+              const targetPiece = board.pieces[targetId] as BoardPieceState;
+              setBoard(healAlly(board, caster, targetId));
+              appendLog(`✨ ${board.pieces[caster].name} healed ${targetPiece.name}${
+                targetPiece.imprisoned ? ' — imprisonment cleared' : ''
+              }${targetPiece.hp < targetPiece.maxHp ? ` +${Math.min(HEAL_AMOUNT, targetPiece.maxHp - targetPiece.hp)} HP` : ''}`);
+            }
+
+            // ── Per-target label ──────────────────────────────────────────────
+            function targetHealLabel(target: BoardPieceState): string {
+              const hpDelta = target.hp < target.maxHp
+                ? Math.min(HEAL_AMOUNT, target.maxHp - target.hp)
+                : 0;
+              if (target.imprisoned && hpDelta > 0) return `Cure + Heal (+${hpDelta} HP)`;
+              if (target.imprisoned) return 'Cure Ally';
+              if (hpDelta > 0) return `Heal Ally (+${hpDelta} HP)`;
+              return 'Heal Ally';
+            }
+
+            // ── Single-button label (existing logic — backward compatible) ─────
             const healTarget = healTargets.length > 0
               ? board.pieces[healTargets[0]] as BoardPieceState
               : null;
@@ -466,6 +488,19 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
             const healLabel = healTarget?.imprisoned
               ? hpDelta > 0 ? `✨ Cure + Heal (+${hpDelta} HP)` : '✨ Cure Ally'
               : hpDelta > 0 ? `✨ Heal Ally (+${hpDelta} HP)` : '✨ Heal Ally';
+
+            // ── Sorted target list for picker (imprisoned first, then wounded-only) ──
+            const sortedHealTargets = healTargets.length > 1
+              ? [...healTargets].sort((a, b) => {
+                  const pa = board.pieces[a] as BoardPieceState;
+                  const pb = board.pieces[b] as BoardPieceState;
+                  const scoreA = (pa.imprisoned ? 2 : 0) + (pa.hp < pa.maxHp ? 1 : 0);
+                  const scoreB = (pb.imprisoned ? 2 : 0) + (pb.hp < pb.maxHp ? 1 : 0);
+                  if (scoreB !== scoreA) return scoreB - scoreA;
+                  return a.localeCompare(b); // stable tiebreak by pieceId
+                })
+              : healTargets;
+
             return (
               <div className="sidebar-piece-card">
                 {portraitUrl && <img src={portraitUrl} alt={p.name} className="sidebar-portrait" />}
@@ -488,23 +523,45 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                   ) : (
                     <div className="sidebar-moves">{board.legalMoves.length} moves available</div>
                   )}
-                  {canHeal && (
+
+                  {/* AC-1: Single target — unchanged UX */}
+                  {canHeal && sortedHealTargets.length === 1 && (
                     <button
                       id="btn-heal-ally"
                       className="sidebar-heal-btn"
-                      onClick={() => {
-                        const caster = board.selectedPieceId!;
-                        const target = healTargets[0];
-                        const targetPiece = board.pieces[target] as BoardPieceState;
-                        setBoard(healAlly(board, caster, target));
-                        appendLog(`✨ ${board.pieces[caster].name} healed ${targetPiece.name}${
-                          targetPiece.imprisoned ? ' — imprisonment cleared' : ''
-                        }${targetPiece.hp < targetPiece.maxHp ? ` +${Math.min(HEAL_AMOUNT, targetPiece.maxHp - targetPiece.hp)} HP` : ''}`);
-                      }}
+                      onClick={() => handleHeal(sortedHealTargets[0])}
                       title="Heal adjacent ally — removes imprisonment and restores HP"
                     >
                       {healLabel}
                     </button>
+                  )}
+
+                  {/* AC-2: Multiple targets — picker */}
+                  {canHeal && sortedHealTargets.length > 1 && (
+                    <div className="sidebar-heal-targets" id="sidebar-heal-targets">
+                      <div className="sidebar-heal-targets-header">✨ Choose ally to heal:</div>
+                      {sortedHealTargets.map(targetId => {
+                        const target = board.pieces[targetId] as BoardPieceState;
+                        const stateTag = target.imprisoned && target.hp < target.maxHp
+                          ? '🔒 imprisoned · ♥ wounded'
+                          : target.imprisoned
+                          ? '🔒 imprisoned'
+                          : '♥ wounded';
+                        return (
+                          <button
+                            key={targetId}
+                            id={`btn-heal-target-${targetId}`}
+                            className="sidebar-heal-target-btn"
+                            onClick={() => handleHeal(targetId)}
+                            title={`Heal ${target.name} — ${stateTag}`}
+                          >
+                            <span className="heal-target-name">{target.name}</span>
+                            <span className="heal-target-state">{stateTag}</span>
+                            <span className="heal-target-action">{targetHealLabel(target)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
