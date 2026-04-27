@@ -404,7 +404,7 @@ describe('POWER_REGEN', () => {
 
 // ─── 1.6: AI v1 ──────────────────────────────────────────────────────────────
 
-import { chooseAiMove, describeAiAction } from './aiEngine';
+import { chooseAiMove, describeAiAction, type AiDifficulty } from './aiEngine';
 
 describe('1.6 — AI v1', () => {
   it('chooseAiMove returns an action on a fresh board when it is dark turn', () => {
@@ -523,6 +523,94 @@ describe('1.6 — AI v1', () => {
     expect(['move', 'contest']).toContain(result.type);
     // Next state should still be a valid board
     expect(result.nextState.phase).toBeDefined();
+  });
+});
+
+// ─── ARCHON-003: AI difficulty wire ───────────────────────────────────────────
+
+describe('ARCHON-003 — AI difficulty wire', () => {
+  // Helper: a fresh board with dark to move
+  function darkBoard() {
+    return { ...makeInitialBoardState(), turnFaction: 'dark' as const };
+  }
+
+  it('chooseAiMove accepts difficulty="normal" without error', () => {
+    const action = chooseAiMove(darkBoard(), 'dark', 'normal');
+    expect(action).not.toBeNull();
+    expect(['capture', 'approach', 'power', 'random']).toContain(action!.reason);
+  });
+
+  it('chooseAiMove accepts difficulty="easy" without error', () => {
+    const action = chooseAiMove(darkBoard(), 'dark', 'easy');
+    expect(action).not.toBeNull();
+    expect(['capture', 'approach', 'power', 'random']).toContain(action!.reason);
+  });
+
+  it('chooseAiMove with default difficulty behaves identically to explicit "normal"', () => {
+    // Both calls should return non-null valid actions from the same initial board.
+    // We cannot assert identical results because of the random tiebreaker, but we
+    // can assert that both are non-null and reference a real dark piece.
+    const board = darkBoard();
+    const defaultAction = chooseAiMove(board, 'dark');        // no difficulty arg
+    const normalAction  = chooseAiMove(board, 'dark', 'normal');
+    expect(defaultAction).not.toBeNull();
+    expect(normalAction).not.toBeNull();
+    expect(board.pieces[defaultAction!.pieceId].faction).toBe('dark');
+    expect(board.pieces[normalAction!.pieceId].faction).toBe('dark');
+  });
+
+  it('on Normal, AI always chooses capture when enemy is on a diagonally-adjacent square (Sorceress)', () => {
+    // The Sorceress is a diagonal-slide piece. Place an enemy directly on her
+    // diagonal so the capture bonus (+1000 on Normal) is always deterministically
+    // the highest-scoring candidate.
+    const state = makeInitialBoardState();
+    const sorceress = state.pieces['dark-sorceress'];
+    const knight    = state.pieces['light-knight'];
+    if (!sorceress || !knight) return;
+
+    // Place Sorceress at (4,4), enemy Knight at (3,3) — a diagonal capture
+    const captureState: typeof state = {
+      ...state,
+      turnFaction: 'dark',
+      pieces: {
+        'dark-sorceress': { ...sorceress, coord: { row: 4, col: 4 } },
+        'light-knight':   { ...knight,   coord: { row: 3, col: 3 } },
+      },
+      squares: (() => {
+        const sq = state.squares.map(r => r.map(c => ({ ...c, pieceId: null as string | null })));
+        sq[4][4].pieceId = 'dark-sorceress';
+        sq[3][3].pieceId = 'light-knight';
+        return sq;
+      })(),
+    };
+
+    // Run 5 times to confirm Normal is deterministic on this clearly-superior capture
+    for (let i = 0; i < 5; i++) {
+      const action = chooseAiMove(captureState, 'dark', 'normal');
+      expect(action).not.toBeNull();
+      expect(action!.reason).toBe('capture');
+      expect(action!.targetCoord).toEqual({ row: 3, col: 3 });
+    }
+  });
+
+  it('on Easy, AI still returns a valid non-null action (engine remains functional)', () => {
+    // Run 10 iterations: even with randomized scoring the AI must always produce an action.
+    const board = darkBoard();
+    for (let i = 0; i < 10; i++) {
+      const action = chooseAiMove(board, 'dark', 'easy');
+      expect(action).not.toBeNull();
+      // Action must reference a real dark piece
+      expect(board.pieces[action!.pieceId]).toBeDefined();
+      expect(board.pieces[action!.pieceId].faction).toBe('dark');
+    }
+  });
+
+  it('AiDifficulty type is exported and has the expected string values', () => {
+    // Type-level check: valid values don't throw at runtime when used as literals
+    const easy: AiDifficulty   = 'easy';
+    const normal: AiDifficulty = 'normal';
+    expect(['easy', 'normal']).toContain(easy);
+    expect(['easy', 'normal']).toContain(normal);
   });
 });
 

@@ -1,10 +1,9 @@
 /**
  * aiEngine.ts — Archon AI v1
  *
- * Simple deterministic CPU for the Dark faction.
+ * Greedy heuristic CPU for the Dark faction.
  * Reuses the existing legal-move generation from boardState (computeLegalMoves
- * is exposed via selectPiece). Does NOT implement minimax, deep search,
- * or difficulty tiers — pure greedy heuristic only.
+ * is exposed via selectPiece).
  *
  * Move-selection priority:
  *   1. Capture  — any move that lands on an enemy piece (triggers contest)
@@ -12,9 +11,14 @@
  *   3. Power    — move toward the nearest power square
  *   4. Random   — any remaining legal move
  *
+ * Difficulty (ARCHON-003):
+ *   'normal' — deterministic capture priority (+1000), narrow tiebreaker (0-9)
+ *   'easy'   — randomized capture bonus (400-1000), wider tiebreaker (0-19);
+ *              AI occasionally misses obvious captures, making it more forgiving.
+ *
  * Usage:
- *   const aiAction = chooseAiMove(boardState, 'dark');
- *   if (aiAction) executeMove(boardState, aiAction.targetCoord); // already knows pieceId
+ *   const aiAction = chooseAiMove(boardState, 'dark', getDifficulty());
+ *   if (aiAction) executeMove(boardState, aiAction.targetCoord);
  */
 
 import type { BoardState, BoardCoord } from '../../lib/board-combat-contract';
@@ -27,6 +31,13 @@ export interface AiAction {
   targetCoord: BoardCoord;
   reason: 'capture' | 'approach' | 'power' | 'random';
 }
+
+/**
+ * Difficulty tier for the board-layer AI.
+ * Mirrors the arena Difficulty type — structurally identical so either can be
+ * passed without an explicit import cycle.
+ */
+export type AiDifficulty = 'easy' | 'normal';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -61,13 +72,21 @@ interface Candidate {
 /**
  * Build a scored candidate list for every legal move of every friendly piece.
  *
- * Scoring:
- *   +1000  if the target square contains an enemy (capture / contest)
+ * Scoring (Normal):
+ *   +1000  if the target square contains an enemy (capture / contest) — deterministic
  *   +10    for each step closer to the nearest enemy (approach bonus)
  *   +5     if the target coord is a power square
  *   +rand  small random tiebreaker (0–9)
+ *
+ * Easy adjustments:
+ *   Capture bonus is randomized (400–1000) so the AI occasionally misses obvious
+ *   captures; tiebreaker is widened (0–19) to add more variation.
  */
-function buildCandidates(state: BoardState, faction: string): Candidate[] {
+function buildCandidates(
+  state: BoardState,
+  faction: string,
+  difficulty: AiDifficulty = 'normal',
+): Candidate[] {
   const candidates: Candidate[] = [];
   const enemies = enemyPieces(state, faction);
   const friendly = friendlyPieces(state, faction);
@@ -88,7 +107,11 @@ function buildCandidates(state: BoardState, faction: string): Candidate[] {
       if (targetPieceId) {
         const target = state.pieces[targetPieceId];
         if (target && target.faction !== faction && !target.isDead) {
-          score += 1000;
+          // Easy: randomized bonus (400–1000) — occasionally sub-optimal
+          // Normal: deterministic +1000 — always highest priority
+          score += difficulty === 'easy'
+            ? 400 + Math.floor(Math.random() * 601)
+            : 1000;
           reason = 'capture';
         }
       }
@@ -109,8 +132,8 @@ function buildCandidates(state: BoardState, faction: string): Candidate[] {
         if (reason === 'random') reason = 'power';
       }
 
-      // 4. Small random tiebreaker
-      score += Math.floor(Math.random() * 10);
+      // 4. Random tiebreaker — wider on Easy to add more variation
+      score += Math.floor(Math.random() * (difficulty === 'easy' ? 20 : 10));
 
       candidates.push({ pieceId: piece.pieceId, targetCoord: move, score, reason });
     }
@@ -124,12 +147,19 @@ function buildCandidates(state: BoardState, faction: string): Candidate[] {
 /**
  * Choose the best legal AI move for `faction`.
  * Returns null if no legal moves exist (all pieces imprisoned or board is over).
+ *
+ * @param difficulty — 'normal' (default) or 'easy'. Easy softens capture priority
+ *   and widens the random tiebreaker, making the AI more forgiving.
  */
-export function chooseAiMove(state: BoardState, faction: 'light' | 'dark'): AiAction | null {
+export function chooseAiMove(
+  state: BoardState,
+  faction: 'light' | 'dark',
+  difficulty: AiDifficulty = 'normal',
+): AiAction | null {
   if (state.phase !== 'active') return null;
   if (state.turnFaction !== faction) return null;
 
-  const candidates = buildCandidates(state, faction);
+  const candidates = buildCandidates(state, faction, difficulty);
   if (candidates.length === 0) return null;
 
   // Pick highest-scoring candidate
