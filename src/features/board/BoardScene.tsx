@@ -16,10 +16,17 @@ import type {
 import {
   makeInitialBoardState, selectPiece, deselectPiece, executeMove,
   applyCombatResult, checkBoardAssets, BOARD_SIZE, IMPRISONMENT_TURNS,
-  healAlly, getAdjacentHealTargets, HEAL_AMOUNT,
+  healAlly, getAdjacentHealTargets, HEAL_AMOUNT, getGameOverMeta, getMoveProfileLabel,
+  isPowerSquare, POWER_REGEN, POWER_SQUARES,
+  checkPowerSquareWin, getPowerSquareControlMap, getPowerSquareController,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
+import { chooseAiMove, describeAiAction } from './aiEngine';
+import {
+  playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
+} from './audioEngine';
 import { getAssetUrl } from '../../lib/packLoader';
+import type { EncounterNode, EncounterType } from './campaignConfig';
 
 interface Props {
   pack: CombatPackManifest;
@@ -27,20 +34,98 @@ interface Props {
   boardState: BoardState;
   onBoardStateChange: (next: BoardState) => void;
   onLaunchCombat: (payload: CombatLaunchPayload, callbacks: CombatBridgeCallbacks) => void;
+  /** 2.7: Board log lifted to App for persistence */
+  boardLog: string[];
+  onBoardLogChange: (next: string[]) => void;
+  /** 2.7: Called when player resets/clears save; parent handles clearSave() */
+  onResetGame: () => void;
+  /** 3.0: Active encounter from CampaignMap (null = Continue Game or QA setup) */
+  activeEncounter?: EncounterNode | null;
+  /** 3.1-rc: Return to title screen from game-over modal */
+  onReturnToTitle?: () => void;
+  /** 3.5: Called when Light wins a board game with an active encounter — marks it complete */
+  onEncounterComplete?: (encId: EncounterType) => void;
+  /** 3.6: Return directly to Campaign Map after encounter completion */
+  onReturnToCampaign?: () => void;
 }
 
-export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat }: Props) {
+export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoard, onLaunchCombat, boardLog, onBoardLogChange, onResetGame, activeEncounter, onReturnToTitle, onEncounterComplete, onReturnToCampaign }: Props) {
   // Asset coverage check (non-blocking)
   const assetCheck = checkBoardAssets(pack);
   if (assetCheck.missing.length > 0) {
     console.warn('[BoardScene] Missing assets for alpha roster:', assetCheck.missing);
   }
 
-  // ── 1.0: Local board event log ─────────────────────────────────────────────
-  const [boardLog, setBoardLog] = useState<string[]>([]);
+  // 3.6: Guard against double-firing onEncounterComplete across multiple modal buttons.
+  // The ref is reset whenever phase leaves 'gameover' (i.e. on New Game / Return).
+  const completedFiredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (board.phase !== 'gameover') completedFiredRef.current = false;
+  }, [board.phase]);
+
+  /**
+   * Fire onEncounterComplete exactly once per game-over event.
+   * @param winnerFaction — provided at call-site to avoid forward ref to gameOverMeta
+   */
+  function fireComplete(winnerFaction: 'light' | 'dark') {
+    if (completedFiredRef.current) return;
+    if (winnerFaction === 'light' && activeEncounter && onEncounterComplete) {
+      completedFiredRef.current = true;
+      onEncounterComplete(activeEncounter.id);
+    }
+  }
+
+  // ── 1.0: Board event log (lifted to App.tsx in 2.7) ───────────────────────────
   const appendLog = useCallback((entry: string) => {
-    setBoardLog(prev => [...prev.slice(-99), entry]);
+    onBoardLogChange([...boardLog.slice(-99), entry]);
+  }, [boardLog, onBoardLogChange]);
+
+  // ── 1.8: Audio state ────────────────────────────────────────────────────────
+  const [audioMuted, setAudioMuted] = useState<boolean>(isMuted());
+  const hasPreloaded = useRef(false);
+
+  // Preload all sounds on first board interaction (respects browser autoplay policy)
+  const ensurePreloaded = useCallback(() => {
+    if (!hasPreloaded.current) {
+      hasPreloaded.current = true;
+      preloadSounds();
+    }
   }, []);
+
+  // 3.1-rc: M key toggles mute from anywhere on the board
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+        const next = toggleMute();
+        setAudioMuted(next);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Start music when game becomes active, stop on gameover
+  useEffect(() => {
+    if (board.phase === 'active') {
+      playMusic();
+    } else if (board.phase === 'gameover') {
+      stopMusic(1.5);
+      playSound('victory').catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.phase]);
+
+  // Play turn-announcement voice when faction changes
+  const prevTurnFactionRef = useRef<string>('');
+  useEffect(() => {
+    if (board.phase !== 'active') return;
+    if (board.turnFaction === prevTurnFactionRef.current) return;
+    prevTurnFactionRef.current = board.turnFaction;
+    // Skip very first render
+    if (!hasPreloaded.current) return;
+    playSound(board.turnFaction === 'light' ? 'turn-light' : 'turn-dark').catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.turnFaction, board.phase]);
 
   // ── 1.0: Cure flash — detect imprisoned→false transitions ──────────────────
   const [justCuredId, setJustCuredId] = useState<string | null>(null);
@@ -64,8 +149,74 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     return () => clearTimeout(t);
   }, [justCuredId]);
 
+  // ── 1.6: AI v1 — Dark faction CPU ──────────────────────────────────────────
+  const AI_FACTION = 'dark' as const;
+  const [isAiThinking, setIsAiThinking] = React.useState(false);
+
+  useEffect(() => {
+    if (board.phase !== 'active') return;
+    if (board.turnFaction !== AI_FACTION) return;
+
+    setIsAiThinking(true);
+    const t = setTimeout(() => {
+      setIsAiThinking(false);
+      const action = chooseAiMove(board, AI_FACTION);
+      if (!action) return; // no legal moves — board already handles win/stalemate
+
+      appendLog(describeAiAction(action, board));
+
+      // Select the piece so executeMove can validate it
+      const withSelection = selectPiece(board, action.pieceId);
+      const result = executeMove(withSelection, action.targetCoord);
+
+      if (result.type === 'contest') {
+        // AI triggered combat — suspend board and launch combat bridge
+        setBoard(result.nextState);
+        appendLog(`⚔ ${result.attacker.name} challenges ${result.defender.name}`);
+        playSound('combat').catch(() => {});
+
+        const payload = {
+          contestedSquare: action.targetCoord,
+          attacker: result.attacker,
+          defender: result.defender,
+          pack,
+        };
+
+        onLaunchCombat(payload, {
+          onResult: (combatResult) => {
+            const nextState = applyCombatResult(result.nextState, combatResult);
+            setBoard(nextState);
+            if (combatResult.outcome === 'attacker_wins') {
+              appendLog(`🗡 ${result.attacker.name} defeated ${result.defender.name}`);
+              playSound(result.defender.faction === 'dark' ? 'death-dark' : 'death-light').catch(() => {});
+            } else {
+              appendLog(`🛡 ${result.defender.name} repelled ${result.attacker.name}`);
+              playSound('hit-heavy').catch(() => {});
+            }
+          },
+          onCancel: () => setBoard(board),
+        });
+      } else {
+        // Normal move
+        setBoard(result.nextState);
+        playSound('move-dark').catch(() => {});
+      }
+    }, 750);
+
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board.turnFaction, board.phase, board.turnNumber]);
+
+
   const handleSquareClick = useCallback((coord: BoardCoord) => {
+    // Block player interaction while AI is thinking or during combat/gameover
+    if (isAiThinking) return;
     if (board.phase === 'combat' || board.phase === 'gameover') return;
+    // Block player clicks on dark's turn (it's the AI's turn)
+    if (board.turnFaction === AI_FACTION) return;
+
+    // 1.8: Unlock audio context on first user gesture
+    ensurePreloaded();
 
     const clickedPieceId = board.squares[coord.row][coord.col].pieceId;
     const clickedPiece = clickedPieceId ? board.pieces[clickedPieceId] : null;
@@ -84,6 +235,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         // Launch combat — board suspends
         setBoard(result.nextState); // phase = 'combat'
         appendLog(`⚔ ${result.attacker.name} challenges ${result.defender.name}`);
+        playSound('combat').catch(() => {});
 
         const payload: CombatLaunchPayload = {
           contestedSquare: coord,
@@ -96,18 +248,23 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           onResult: (combatResult) => {
             const nextState = applyCombatResult(result.nextState, combatResult);
             setBoard(nextState);
-            // Log outcome
+            // Log + audio outcome
             if (combatResult.outcome === 'attacker_wins') {
               appendLog(`🗡 ${result.attacker.name} defeated ${result.defender.name}`);
+              playSound(result.defender.faction === 'dark' ? 'death-dark' : 'death-light').catch(() => {});
             } else {
               appendLog(`🛡 ${result.defender.name} repelled ${result.attacker.name}`);
+              playSound('hit').catch(() => {});
             }
             // Detect newly imprisoned pieces from the result
             const nextPieces = nextState.pieces as Record<string, BoardPieceState>;
             for (const p of Object.values(nextPieces)) {
               if ((p as BoardPieceState).imprisoned) {
                 const prevImprisoned = (prevPiecesRef.current[p.pieceId] as BoardPieceState | undefined)?.imprisoned;
-                if (!prevImprisoned) appendLog(`🔒 ${p.name} was imprisoned`);
+                if (!prevImprisoned) {
+                  appendLog(`🔒 ${p.name} was imprisoned`);
+                  playSound('magic').catch(() => {});
+                }
               }
             }
           },
@@ -119,34 +276,73 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
 
         onLaunchCombat(payload, callbacks);
       } else {
-        // Normal move — log it
+        // Normal move — log it + play move sound
         const mover = board.pieces[board.selectedPieceId!];
         setBoard(result.nextState);
         appendLog(`➡ ${mover.name} moved to ${coord.row},${coord.col}`);
+        playSound('move-light').catch(() => {});
       }
       return;
     }
 
     // Otherwise deselect
     setBoard(deselectPiece(board));
-  }, [board, pack, onLaunchCombat, setBoard, appendLog]);
+  }, [board, pack, onLaunchCombat, setBoard, appendLog, ensurePreloaded]);
 
-  const winner = board.phase === 'gameover'
-    ? (Object.values(board.pieces).some(p => p.faction === 'light' && !p.isDead) ? 'light' : 'dark')
-    : null;
+  // 1.7: compute game-over metadata — pass squares for power-square win check
+  const gameOverMeta = board.phase === 'gameover'
+    ? getGameOverMeta(board.pieces, board.squares)
+    : undefined;
 
+  // Derive winner from meta (handles power-square win correctly)
+  const winner = gameOverMeta?.winnerFaction ?? null;
+
+  // 1.7: live power-square control map for HUD strip
+  const psControlMap = getPowerSquareControlMap(board.squares, board.pieces);
+  const lightPsCount = psControlMap.filter(e => e.controller === 'light').length;
+  const darkPsCount  = psControlMap.filter(e => e.controller === 'dark').length;
   return (
     <div className="board-scene" id="board-scene">
       {/* Board HUD */}
       <header className="board-hud">
         <div className="hud-left">
           <span className="game-title">⚔ Archon</span>
-          <span className="board-subtitle">Board Alpha</span>
+          {/* 3.1-rc: hide 'Board Alpha' when an encounter badge is present */}
+          {!activeEncounter && <span className="board-subtitle">Board</span>}
+          {/* 3.0: Encounter badge */}
+          {activeEncounter && (
+            <span
+              className={`encounter-badge encounter-badge--${activeEncounter.themeClass}`}
+              id="encounter-badge"
+              title={activeEncounter.subtitle}
+            >
+              {activeEncounter.icon} {activeEncounter.title}
+            </span>
+          )}
+          {/* 1.7: Power-square control strip */}
+          <div className="ps-strip" id="ps-strip" aria-label="Power square control">
+            {psControlMap.map((entry, i) => (
+              <span
+                key={i}
+                className={[
+                  'ps-pip',
+                  entry.controller === 'light' ? 'ps-pip--light' : '',
+                  entry.controller === 'dark'  ? 'ps-pip--dark'  : '',
+                  !entry.controller ? 'ps-pip--empty' : '',
+                ].filter(Boolean).join(' ')}
+                title={`(${entry.coord.row},${entry.coord.col}): ${entry.controller ?? 'uncontrolled'}`}
+              >⚡</span>
+            ))}
+            <span className="ps-score">{lightPsCount}L / {darkPsCount}D</span>
+          </div>
         </div>
         <div className="hud-center">
           {board.phase === 'active' && (
-            <span className={`turn-indicator turn-indicator--${board.turnFaction}`}>
-              {board.turnFaction === 'light' ? '☀ Light' : '🌑 Dark'} — Turn {board.turnNumber}
+            <span className={`turn-indicator turn-indicator--${isAiThinking ? 'ai' : board.turnFaction}`}>
+              {isAiThinking
+                ? '🤖 Dark is thinking…'
+                : board.turnFaction === 'light' ? '✦ Light — Your Turn' : '🌑 Dark — Turn ' + board.turnNumber
+              }
             </span>
           )}
           {board.phase === 'combat' && (
@@ -154,20 +350,39 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
           )}
           {board.phase === 'gameover' && (
             <span className={`turn-indicator turn-indicator--${winner}`}>
-              {winner === 'light' ? '☀ Light Wins!' : '🌑 Dark Wins!'}
+              {gameOverMeta?.reason === 'power_squares_controlled'
+                ? `${winner === 'light' ? '✦ Light' : '🌑 Dark'} ⚡ Controls All 5!`
+                : winner === 'light' ? '✦ Light Wins!' : '🌑 Dark Wins!'
+              }
             </span>
           )}
         </div>
         <div className="hud-right">
-          {board.phase === 'gameover' && (
-            <button
-              id="btn-board-reset"
-              className="btn-rematch"
-              onClick={() => setBoard(makeInitialBoardState())}
-            >
-              New Game
-            </button>
-          )}
+          {/* 1.8: Mute toggle */}
+          <button
+            id="btn-mute"
+            className={`btn-mute ${audioMuted ? 'btn-mute--off' : ''}`}
+            title={audioMuted ? 'Unmute sound' : 'Mute sound'}
+            onClick={() => {
+              const next = toggleMute();
+              setAudioMuted(next);
+            }}
+            aria-label={audioMuted ? 'Unmute' : 'Mute'}
+          >
+            {audioMuted ? '🔇' : '🔊'}
+          </button>
+          {/* 2.7: Reset / New Game button — always visible, clears save */}
+          <button
+            id="btn-reset-game"
+            className="btn-reset-game"
+            title="Start a new game and clear save"
+            onClick={() => {
+              if (!window.confirm('Start a new game? Your current progress will be lost.')) return;
+              onResetGame();
+            }}
+          >
+            ↺ Reset
+          </button>
         </div>
       </header>
 
@@ -197,6 +412,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                   isLegal ? 'board-square--legal' : '',
                   hasEnemy ? 'board-square--attack' : '',
                   (rowIdx + colIdx) % 2 === 0 ? 'board-square--even' : 'board-square--odd',
+                  isPowerSquare({ row: rowIdx, col: colIdx }) ? 'board-square--power' : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => handleSquareClick({ row: rowIdx, col: colIdx })}
               >
@@ -256,7 +472,15 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                 <div className="sidebar-info">
                   <div className="sidebar-name">{p.name}</div>
                   <div className="sidebar-role">{p.role}</div>
+                  <div className="sidebar-move-profile" id={`sidebar-move-profile-${p.pieceId}`}>
+                    ⟶ {getMoveProfileLabel(p.pieceId)}
+                  </div>
                   <div className="sidebar-hp">{p.hp} / {p.maxHp} HP</div>
+                  {isPowerSquare(p.coord) && (
+                    <div className="sidebar-power-badge" id={`sidebar-power-badge-${p.pieceId}`}>
+                      ⚡ Power Square (+{POWER_REGEN} HP/turn)
+                    </div>
+                  )}
                   {(p as BoardPieceState).imprisoned ? (
                     <div className="sidebar-imprisoned-status" id="sidebar-imprisoned-status">
                       🔒 Imprisoned — {(p as BoardPieceState).imprisonedTurnsRemaining ?? IMPRISONMENT_TURNS} turn(s) remaining
@@ -296,6 +520,32 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
             <div key={i} className="board-log-entry">{entry}</div>
           ))}
         </div>
+      )}
+
+      {/* 1.1 / 3.6: Game-over modal overlay */}
+      {board.phase === 'gameover' && gameOverMeta && (
+        <GameOverModal
+          winner={gameOverMeta.winnerFaction}
+          reason={gameOverMeta.reason}
+          encounterTitle={
+            gameOverMeta.winnerFaction === 'light' && activeEncounter
+              ? activeEncounter.title
+              : undefined
+          }
+          onReturnToCampaign={
+            gameOverMeta.winnerFaction === 'light' && activeEncounter && onReturnToCampaign
+              ? () => { fireComplete(gameOverMeta.winnerFaction); onReturnToCampaign!(); }
+              : undefined
+          }
+          onNewGame={() => {
+            fireComplete(gameOverMeta.winnerFaction);
+            onResetGame();
+          }}
+          onReturnToTitle={onReturnToTitle ? () => {
+            fireComplete(gameOverMeta.winnerFaction);
+            onReturnToTitle!();
+          } : undefined}
+        />
       )}
     </div>
   );
@@ -355,6 +605,95 @@ function DefeatedToken({ piece, pack }: TokenProps) {
         ? <img src={defeatedUrl} alt={`${piece.name} (defeated)`} className="piece-token-img piece-token-img--defeated" />
         : <span className="piece-token-fallback piece-token-fallback--dead">☠</span>
       }
+    </div>
+  );
+}
+
+// ─── 1.1 / 3.6: Game Over Modal ───────────────────────────────────────────────
+
+interface GameOverModalProps {
+  winner: 'light' | 'dark';
+  reason: 'all_enemies_eliminated' | 'faction_annihilated' | 'power_squares_controlled';
+  /** 3.6: When set (Light win + active encounter), show encounter-complete mode */
+  encounterTitle?: string;
+  /** 3.6: Return directly to Campaign Map — primary action on encounter completion */
+  onReturnToCampaign?: () => void;
+  /** Start a new game via campaign map */
+  onNewGame:        () => void;
+  /** Return to title screen (optional) */
+  onReturnToTitle?: () => void;
+}
+
+function GameOverModal({ winner, reason, encounterTitle, onReturnToCampaign, onNewGame, onReturnToTitle }: GameOverModalProps) {
+  const isLight      = winner === 'light';
+  const isEncounter  = isLight && !!encounterTitle;
+
+  // ── Title & subtitle ──────────────────────────────────────────────────────
+  const title = isLight ? '✦ Light Victorious' : '🌑 Dark Triumphant';
+  const sub   = reason === 'power_squares_controlled'
+    ? '⚡ All 5 power squares controlled — strategic dominance achieved!'
+    : reason === 'faction_annihilated'
+    ? 'All enemy forces have been annihilated.'
+    : 'All enemies have been eliminated.';
+
+  return (
+    <div
+      className={`gameover-overlay gameover-overlay--${winner}`}
+      id="gameover-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${isLight ? 'Light' : 'Dark'} wins`}
+    >
+      <div className={`gameover-card gameover-card--${winner}`} id="gameover-card">
+        <div className="gameover-emblem" aria-hidden="true">
+          {isLight ? '☀' : '🌑'}
+        </div>
+        <h2 className="gameover-title" id="gameover-title">{title}</h2>
+        <p  className="gameover-sub">{sub}</p>
+
+        {/* 3.6: Encounter-complete banner — only shown on Light win with active encounter */}
+        {isEncounter && (
+          <div className="gameover-encounter-complete" id="gameover-encounter-complete">
+            <span className="gameover-encounter-complete__check" aria-hidden="true">✓</span>
+            <div className="gameover-encounter-complete__text">
+              <strong className="gameover-encounter-complete__label">Encounter Complete</strong>
+              <span className="gameover-encounter-complete__name">{encounterTitle}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="gameover-divider" />
+
+        {/* 3.6: Return to Campaign is the primary action when coming from an encounter */}
+        {isEncounter && onReturnToCampaign && (
+          <button
+            id="btn-return-to-campaign"
+            className="gameover-return-campaign"
+            onClick={onReturnToCampaign}
+            autoFocus
+          >
+            ↩ Return to Campaign
+          </button>
+        )}
+
+        <button
+          id="btn-play-again"
+          className="gameover-play-again"
+          onClick={onNewGame}
+          autoFocus={!isEncounter}
+        >
+          ↺ New Game
+        </button>
+        {onReturnToTitle && (
+          <button
+            id="btn-return-to-title"
+            className="gameover-return-title"
+            onClick={onReturnToTitle}
+          >
+            ← Return to Title
+          </button>
+        )}
+      </div>
     </div>
   );
 }

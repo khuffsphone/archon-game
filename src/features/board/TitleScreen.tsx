@@ -1,0 +1,199 @@
+/**
+ * TitleScreen.tsx — Archon 3.1-rc
+ *
+ * RC polish: version bump, cleaner difficulty copy, controls section added.
+ */
+import React, { useEffect, useState, useCallback } from 'react';
+import type { Difficulty } from '../arena/difficultyConfig';
+import { persistDifficulty, getDifficulty } from '../arena/difficultyConfig';
+
+interface Props {
+  hasSave:     boolean;
+  onNewGame:   () => void;
+  onContinue:  () => void;
+}
+
+const RULES = [
+  {
+    icon: '♟',
+    heading: 'Move & Conquer',
+    body: 'Move one of your 7 pieces each turn. Move onto an enemy square to trigger combat.',
+  },
+  {
+    icon: '⚔',
+    heading: 'Combat',
+    body: 'Challenger and defender trade blows until one is eliminated or retreats. Winning side occupies the square.',
+  },
+  {
+    icon: '⚡',
+    heading: 'Power Squares',
+    body: '5 marked squares grant +2 HP regen per turn to any piece standing on them. Control all 5 to win instantly.',
+  },
+  {
+    icon: '🌑',
+    heading: 'Dark AI',
+    body: 'Dark faction is controlled by AI — it will advance, seek power squares, and initiate combat automatically.',
+  },
+  {
+    icon: '🏆',
+    heading: 'Victory',
+    body: 'Annihilate all enemy pieces — or control all 5 ⚡ power squares simultaneously to claim strategic dominance.',
+  },
+];
+
+const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [
+  { value: 'easy',   label: 'Easy',   desc: 'Slower, more forgiving AI' },
+  { value: 'normal', label: 'Normal', desc: 'Tactical AI — standard challenge' },
+];
+
+const CONTROLS = [
+  { key: 'Click piece',  action: 'Select / deselect' },
+  { key: 'Click square', action: 'Move or attack' },
+  { key: 'Heal button',  action: 'Cure or heal adjacent ally' },
+  { key: 'C',           action: 'Continue saved game (title screen)' },
+  { key: 'Esc',         action: 'Back / cancel (campaign map)' },
+  { key: 'M',           action: 'Toggle mute (board)' },
+];
+
+export function TitleScreen({ hasSave, onNewGame, onContinue }: Props) {
+  const [exiting, setExiting]       = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>(getDifficulty);
+
+  const handleDifficulty = (d: Difficulty) => {
+    setDifficulty(d);
+    persistDifficulty(d);
+  };
+
+  const handleNewGame = useCallback(() => {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(onNewGame, 600);
+  }, [exiting, onNewGame]);
+
+  const handleContinue = useCallback(() => {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(onContinue, 600);
+  }, [exiting, onContinue]);
+
+  // Keyboard: Enter / Space → New Game; C → Continue (if save exists)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNewGame(); }
+      if ((e.key === 'c' || e.key === 'C') && hasSave) { e.preventDefault(); handleContinue(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleNewGame, handleContinue, hasSave]);
+
+  return (
+    <div className={`title-screen ${exiting ? 'title-screen--exit' : ''}`} id="title-screen">
+      {/* Animated background particles */}
+      <div className="title-bg" aria-hidden="true">
+        <div className="title-bg__orb title-bg__orb--light" />
+        <div className="title-bg__orb title-bg__orb--dark" />
+      </div>
+
+      <div className="title-content">
+        {/* Faction crests */}
+        <div className="title-crests" aria-hidden="true">
+          <div className="title-crest title-crest--light">
+            <span className="title-crest__icon">☀</span>
+            <span className="title-crest__label">Light</span>
+          </div>
+
+          {/* Logo */}
+          <div className="title-logo-block">
+            <h1 className="title-logo" id="title-heading">ARCHON</h1>
+            <p className="title-tagline">A Game of Light &amp; Shadow</p>
+          </div>
+
+          <div className="title-crest title-crest--dark">
+            <span className="title-crest__icon">🌑</span>
+            <span className="title-crest__label">Dark</span>
+          </div>
+        </div>
+
+        {/* ── Difficulty Selector ─────────────────────────────────────── */}
+        <div className="title-difficulty" role="group" aria-label="Select difficulty">
+          <span className="title-difficulty__label">Difficulty</span>
+          <div className="title-difficulty__options">
+            {DIFFICULTIES.map(({ value, label, desc }) => (
+              <button
+                key={value}
+                id={`btn-difficulty-${value}`}
+                className={`title-difficulty__btn ${difficulty === value ? 'title-difficulty__btn--active' : ''}`}
+                onClick={() => handleDifficulty(value)}
+                aria-pressed={difficulty === value}
+                title={desc}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="title-difficulty__desc">
+            {DIFFICULTIES.find(d => d.value === difficulty)?.desc}
+          </span>
+        </div>
+
+        {/* CTA block */}
+        <div className="title-cta-block">
+          {/* 2.7: Continue Game — only shown when a valid save exists */}
+          {hasSave && (
+            <button
+              id="btn-continue-game"
+              className="title-cta title-cta--continue"
+              onClick={handleContinue}
+            >
+              <span className="title-cta__text">↩ Continue Game</span>
+              <span className="title-cta__hint">Press C</span>
+            </button>
+          )}
+
+          <button
+            id="btn-new-game"
+            className="title-cta title-cta--new"
+            onClick={handleNewGame}
+            autoFocus={!hasSave}
+          >
+            <span className="title-cta__text">⚔ New Game</span>
+            <span className="title-cta__hint">Press Enter or Space</span>
+          </button>
+        </div>
+
+        {/* Rules */}
+        <section className="title-rules" aria-label="Game rules summary">
+          <h2 className="title-rules__heading">How to Play</h2>
+          <div className="title-rules__grid">
+            {RULES.map((rule, i) => (
+              <div className="title-rule" key={i}>
+                <span className="title-rule__icon" aria-hidden="true">{rule.icon}</span>
+                <div className="title-rule__body">
+                  <strong className="title-rule__title">{rule.heading}</strong>
+                  <p className="title-rule__desc">{rule.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Controls reference */}
+        <section className="title-controls" aria-label="Keyboard controls">
+          <h2 className="title-rules__heading">Controls</h2>
+          <div className="title-controls__grid">
+            {CONTROLS.map((c, i) => (
+              <div key={i} className="title-control-row">
+                <kbd className="title-control-key">{c.key}</kbd>
+                <span className="title-control-action">{c.action}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <footer className="title-footer">
+          <span>Archon v3.7 · Headless Studios · {new Date().getFullYear()}</span>
+        </footer>
+      </div>
+    </div>
+  );
+}

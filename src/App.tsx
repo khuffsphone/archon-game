@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { CombatBridge } from './features/combat/CombatBridge';
 import { BoardScene } from './features/board/BoardScene';
+import { TitleScreen } from './features/board/TitleScreen';
+import { CampaignMap } from './features/board/CampaignMap';
+import { ArenaScene } from './features/arena/ArenaScene';
 import { CombatPackManifest } from './lib/types';
 import { validatePack } from './lib/packLoader';
 import combatPackData from './combat-pack-manifest.json';
@@ -15,7 +18,19 @@ import {
   makeDarkAttackerContestSetup,
   makeGameOverSetup,
   makeDarkWinsSetup,
+  makeSkirmishBoardState,
+  makeDragonsGateBoardState,
 } from './features/board/boardState';
+import {
+  saveGame, loadGame, clearSave, hasSavedGame,
+} from './features/board/boardSave';
+import type { EncounterNode } from './features/board/campaignConfig';
+import {
+  loadProgress, saveProgress, markEncounterComplete, clearProgress,
+  isEncounterUnlocked,
+  type CampaignProgressPayload,
+} from './features/board/campaignProgress';
+import { ENCOUNTERS } from './features/board/campaignConfig';
 
 // Asset IDs required for the Knight vs Sorceress combat slice
 const REQUIRED_IDS = [
@@ -27,12 +42,19 @@ const REQUIRED_IDS = [
   'sfx-melee-hit',
 ];
 
-// App mode: 'board' is the Part 2 entry point, 'combat' preserves the v1.1.1 standalone
-type AppMode = 'board' | 'combat';
+// App mode: 'title' is the entry splash, 'campaign' is encounter selection,
+// 'board' is the main game, 'combat' preserves standalone
+type AppMode = 'title' | 'campaign' | 'board' | 'combat';
+
+/** Feature flag: ?arena=1 routes board combat to the new 2D ArenaScene */
+const USE_ARENA = new URLSearchParams(window.location.search).get('arena') === '1';
 
 function getInitialMode(): AppMode {
   const params = new URLSearchParams(window.location.search);
-  return params.get('mode') === 'combat' ? 'combat' : 'board';
+  if (params.get('mode') === 'combat') return 'combat';
+  // If a ?setup= param is present, skip title for QA convenience
+  if (params.get('setup')) return 'board';
+  return 'title';
 }
 
 function getInitialBoardState(): BoardState {
@@ -55,11 +77,52 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AppMode>(getInitialMode);
 
+  // 3.0: Selected encounter — carried from CampaignMap to BoardScene
+  const [activeEncounter, setActiveEncounter] = useState<EncounterNode | null>(null);
+
+  // 3.5: Campaign progression — separate from board save
+  const [progress, setProgress] = useState<CampaignProgressPayload>(loadProgress);
+
+  // ── 2.7: Save / Resume ────────────────────────────────────────────────────
+  // Board log is owned here so it can be persisted alongside boardState.
+  const [boardLog, setBoardLog] = useState<string[]>(() => {
+    // Restore log from save on first load (if no ?setup= override)
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('setup')) {
+      const save = loadGame();
+      if (save) return save.boardLog;
+    }
+    return [];
+  });
+
+  // Whether a valid save exists (drives Continue Game button)
+  const [hasSave, setHasSave] = useState<boolean>(() => hasSavedGame());
+
   // ── Board state lifted to App so it survives mode switches ────────────────
-  // BoardScene is a controlled component — App owns boardState, BoardScene renders
-  // it and fires onBoardStateChange. Switching to Combat mode no longer unmounts
-  // and resets the board because BoardScene simply isn't rendered (not destroyed).
-  const [boardState, setBoardState] = useState<BoardState>(getInitialBoardState);
+  const [boardState, setBoardStateRaw] = useState<BoardState>(() => {
+    // 2.7: Restore from save on reload (if no ?setup= override)
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('setup')) {
+      const save = loadGame();
+      if (save) return save.boardState;
+    }
+    return getInitialBoardState();
+  });
+
+  // Wrapped setter: auto-saves after every meaningful state change
+  const setBoardState = useCallback((next: BoardState) => {
+    setBoardStateRaw(next);
+    // We don't have boardLog in scope here — save is triggered by the effect below
+  }, []);
+
+  // Auto-save effect: runs whenever boardState or boardLog changes
+  useEffect(() => {
+    // Don't save QA setups (?setup= param)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('setup')) return;
+    saveGame(boardState, boardLog);
+    setHasSave(true);
+  }, [boardState, boardLog]);
 
   // Combat launch state (when board triggers a combat)
   const [combatPayload, setCombatPayload] = useState<CombatLaunchPayload | null>(null);
@@ -112,6 +175,56 @@ export default function App() {
 
   if (!pack) return <div className="loading-screen">Loading combat pack…</div>;
 
+  // 1.9 / 3.0: Title screen
+  if (mode === 'title') {
+    return (
+      <TitleScreen
+        hasSave={hasSave}
+        onNewGame={() => {
+          // 3.0: New Game → Campaign Map (not board directly)
+          clearSave();
+          setHasSave(false);
+          setBoardLog([]);
+          setBoardStateRaw(getInitialBoardState());
+          setActiveEncounter(null);
+          setMode('campaign');
+        }}
+        onContinue={() => {
+          // Continue Game bypasses campaign map — goes straight to board
+          setMode('board');
+        }}
+      />
+    );
+  }
+
+  // 3.0 / 3.5 / 3.9: Campaign Map — encounter selection with completed + unlocked state
+  if (mode === 'campaign') {
+    const unlockedIds = ENCOUNTERS
+      .filter(enc => isEncounterUnlocked(progress, enc.id))
+      .map(enc => enc.id);
+    return (
+      <CampaignMap
+        completedIds={progress.completedIds}
+        unlockedIds={unlockedIds}
+        onLaunch={(enc) => {
+          setActiveEncounter(enc);
+          // 3.2 / 3.8: Use the correct board setup for each encounter type
+          const initialState =
+            enc.boardSetup === 'skirmish'     ? makeSkirmishBoardState()
+            : enc.boardSetup === 'dragons-gate' ? makeDragonsGateBoardState()
+            : getInitialBoardState();
+          setBoardStateRaw(initialState);
+          setBoardLog([`⚔ Encounter: ${enc.title}`]);
+          setMode('board');
+        }}
+        onBack={() => setMode('title')}
+        onClearProgress={() => {
+          clearProgress();
+          setProgress(loadProgress());
+        }}
+      />
+    );
+  }
   // Mode toggle (dev tool — top-right corner)
   const modeToggle = (
     <div className="mode-toggle" id="mode-toggle">
@@ -135,7 +248,18 @@ export default function App() {
   // Board mode — board is active, and possibly combat is in progress
   if (mode === 'board') {
     if (combatPayload && combatCallbacks) {
-      // Combat phase launched from board
+      // 2.0: Route to interactive ArenaScene when ?arena=1 flag is set
+      if (USE_ARENA) {
+        return (
+          <div className="app-root">
+            <ArenaScene
+              payload={combatPayload}
+              callbacks={combatCallbacks}
+            />
+          </div>
+        );
+      }
+      // Legacy: static CombatBridge
       return (
         <div className="app-root">
           {modeToggle}
@@ -155,6 +279,40 @@ export default function App() {
           boardState={boardState}
           onBoardStateChange={setBoardState}
           onLaunchCombat={handleLaunchCombat}
+          boardLog={boardLog}
+          onBoardLogChange={setBoardLog}
+          activeEncounter={activeEncounter}
+          onEncounterComplete={(encId) => {
+            // 3.5: Mark completed and persist immediately
+            const next = markEncounterComplete(progress, encId);
+            setProgress(next);
+            saveProgress(next);
+          }}
+          onReturnToCampaign={() => {
+            // 3.6: Return to Campaign Map — clear board save, show updated completed badges
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setActiveEncounter(null);
+            setBoardStateRaw(makeInitialBoardState());
+            setMode('campaign');
+          }}
+          onResetGame={() => {
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setActiveEncounter(null);
+            setBoardStateRaw(makeInitialBoardState());
+            setMode('campaign');
+          }}
+          onReturnToTitle={() => {
+            clearSave();
+            setHasSave(false);
+            setBoardLog([]);
+            setActiveEncounter(null);
+            setBoardStateRaw(makeInitialBoardState());
+            setMode('title');
+          }}
         />
       </div>
     );
