@@ -5,16 +5,17 @@
  * Reuses the existing legal-move generation from boardState (computeLegalMoves
  * is exposed via selectPiece).
  *
- * Move-selection priority:
- *   1. Capture  — any move that lands on an enemy piece (triggers contest)
+ * Move-selection priority (both difficulties):
+ *   1. Capture  — any move that lands on an enemy piece (+1000 bonus)
  *   2. Approach — move toward the nearest enemy piece (Chebyshev distance)
  *   3. Power    — move toward the nearest power square
  *   4. Random   — any remaining legal move
  *
  * Difficulty (ARCHON-003):
- *   'normal' — deterministic capture priority (+1000), narrow tiebreaker (0-9)
- *   'easy'   — randomized capture bonus (400-1000), wider tiebreaker (0-19);
- *              AI occasionally misses obvious captures, making it more forgiving.
+ *   'normal' — always executes the highest-scoring move (deterministic capture priority)
+ *   'easy'   — 35% chance to "overlook" the best capture and take the best
+ *              non-capture alternative instead, making the AI meaningfully
+ *              more forgiving without changing the underlying scoring model.
  *
  * Usage:
  *   const aiAction = chooseAiMove(boardState, 'dark', getDifficulty());
@@ -38,6 +39,13 @@ export interface AiAction {
  * passed without an explicit import cycle.
  */
 export type AiDifficulty = 'easy' | 'normal';
+
+/**
+ * On Easy difficulty, this is the probability that the AI "overlooks" the best
+ * capture candidate and falls back to the best non-capture move instead.
+ * 35% gives a clearly noticeable but not frustrating forgiveness rate.
+ */
+export const EASY_CAPTURE_MISS_RATE = 0.35;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -71,23 +79,16 @@ interface Candidate {
 
 /**
  * Build a scored candidate list for every legal move of every friendly piece.
+ * Scoring is identical for both difficulty tiers — difficulty only affects
+ * move selection in chooseAiMove, not scoring here.
  *
- * Scoring (Normal):
- *   +1000  if the target square contains an enemy (capture / contest) — deterministic
+ * Scoring:
+ *   +1000  if the target square contains an enemy (capture / contest)
  *   +10    for each step closer to the nearest enemy (approach bonus)
  *   +5     if the target coord is a power square
  *   +rand  small random tiebreaker (0–9)
- *
- * Easy adjustments:
- *   Capture bonus is 0–79 (avg ~40) so non-capture moves scoring 10–49
- *   (approach + tiebreaker) can realistically compete ~25–50% of the time;
- *   tiebreaker is widened (0–19) to add more variation.
  */
-function buildCandidates(
-  state: BoardState,
-  faction: string,
-  difficulty: AiDifficulty = 'normal',
-): Candidate[] {
+function buildCandidates(state: BoardState, faction: string): Candidate[] {
   const candidates: Candidate[] = [];
   const enemies = enemyPieces(state, faction);
   const friendly = friendlyPieces(state, faction);
@@ -103,18 +104,12 @@ function buildCandidates(
       let score = 0;
       let reason: AiAction['reason'] = 'random';
 
-      // 1. Capture bonus
+      // 1. Capture bonus — always +1000 regardless of difficulty
       const targetPieceId = state.squares[move.row][move.col].pieceId;
       if (targetPieceId) {
         const target = state.pieces[targetPieceId];
         if (target && target.faction !== faction && !target.isDead) {
-          // Easy: 0–79 (avg ~40) — non-capture approach moves (10–40+) can
-          //   realistically beat this, so the AI genuinely misses captures ~25–50%
-          //   of the time depending on how good the approach alternative is.
-          // Normal: +1000 deterministic — capture is always highest priority.
-          score += difficulty === 'easy'
-            ? Math.floor(Math.random() * 80)
-            : 1000;
+          score += 1000;
           reason = 'capture';
         }
       }
@@ -135,8 +130,8 @@ function buildCandidates(
         if (reason === 'random') reason = 'power';
       }
 
-      // 4. Random tiebreaker — wider on Easy to add more variation
-      score += Math.floor(Math.random() * (difficulty === 'easy' ? 20 : 10));
+      // 4. Small random tiebreaker
+      score += Math.floor(Math.random() * 10);
 
       candidates.push({ pieceId: piece.pieceId, targetCoord: move, score, reason });
     }
@@ -151,8 +146,15 @@ function buildCandidates(
  * Choose the best legal AI move for `faction`.
  * Returns null if no legal moves exist (all pieces imprisoned or board is over).
  *
- * @param difficulty — 'normal' (default) or 'easy'. Easy softens capture priority
- *   and widens the random tiebreaker, making the AI more forgiving.
+ * @param difficulty — 'normal' (default) or 'easy'.
+ *
+ * Normal: always takes the highest-scoring move (deterministic capture priority).
+ *
+ * Easy: 35% chance (EASY_CAPTURE_MISS_RATE) the AI "overlooks" the best capture
+ *   and falls back to the highest-scoring non-capture candidate instead.
+ *   The underlying scores are identical — only the selection step differs.
+ *   This makes the AI genuinely, measurably more forgiving at the decision
+ *   level, not just slightly slower or noisier.
  */
 export function chooseAiMove(
   state: BoardState,
@@ -162,12 +164,30 @@ export function chooseAiMove(
   if (state.phase !== 'active') return null;
   if (state.turnFaction !== faction) return null;
 
-  const candidates = buildCandidates(state, faction, difficulty);
+  const candidates = buildCandidates(state, faction);
   if (candidates.length === 0) return null;
 
-  // Pick highest-scoring candidate
+  // Sort: highest score first
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
+
+  // Easy difficulty: 35% chance to "overlook" the best capture and fall back
+  // to the best non-capture alternative. This is the real behavioral difference:
+  // the AI is not just slower — it genuinely misses available captures.
+  if (
+    difficulty === 'easy' &&
+    best.reason === 'capture' &&
+    Math.random() < EASY_CAPTURE_MISS_RATE
+  ) {
+    const fallback = candidates.find(c => c.reason !== 'capture');
+    if (fallback) {
+      return {
+        pieceId: fallback.pieceId,
+        targetCoord: fallback.targetCoord,
+        reason: fallback.reason,
+      };
+    }
+  }
 
   return {
     pieceId: best.pieceId,
