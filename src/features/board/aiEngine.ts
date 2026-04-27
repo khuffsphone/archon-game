@@ -1,20 +1,25 @@
 /**
  * aiEngine.ts — Archon AI v1
  *
- * Simple deterministic CPU for the Dark faction.
+ * Greedy heuristic CPU for the Dark faction.
  * Reuses the existing legal-move generation from boardState (computeLegalMoves
- * is exposed via selectPiece). Does NOT implement minimax, deep search,
- * or difficulty tiers — pure greedy heuristic only.
+ * is exposed via selectPiece).
  *
- * Move-selection priority:
- *   1. Capture  — any move that lands on an enemy piece (triggers contest)
+ * Move-selection priority (both difficulties):
+ *   1. Capture  — any move that lands on an enemy piece (+1000 bonus)
  *   2. Approach — move toward the nearest enemy piece (Chebyshev distance)
  *   3. Power    — move toward the nearest power square
  *   4. Random   — any remaining legal move
  *
+ * Difficulty (ARCHON-003):
+ *   'normal' — always executes the highest-scoring move (deterministic capture priority)
+ *   'easy'   — 35% chance to "overlook" the best capture and take the best
+ *              non-capture alternative instead, making the AI meaningfully
+ *              more forgiving without changing the underlying scoring model.
+ *
  * Usage:
- *   const aiAction = chooseAiMove(boardState, 'dark');
- *   if (aiAction) executeMove(boardState, aiAction.targetCoord); // already knows pieceId
+ *   const aiAction = chooseAiMove(boardState, 'dark', getDifficulty());
+ *   if (aiAction) executeMove(boardState, aiAction.targetCoord);
  */
 
 import type { BoardState, BoardCoord } from '../../lib/board-combat-contract';
@@ -27,6 +32,20 @@ export interface AiAction {
   targetCoord: BoardCoord;
   reason: 'capture' | 'approach' | 'power' | 'random';
 }
+
+/**
+ * Difficulty tier for the board-layer AI.
+ * Mirrors the arena Difficulty type — structurally identical so either can be
+ * passed without an explicit import cycle.
+ */
+export type AiDifficulty = 'easy' | 'normal';
+
+/**
+ * On Easy difficulty, this is the probability that the AI "overlooks" the best
+ * capture candidate and falls back to the best non-capture move instead.
+ * 35% gives a clearly noticeable but not frustrating forgiveness rate.
+ */
+export const EASY_CAPTURE_MISS_RATE = 0.35;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -60,6 +79,8 @@ interface Candidate {
 
 /**
  * Build a scored candidate list for every legal move of every friendly piece.
+ * Scoring is identical for both difficulty tiers — difficulty only affects
+ * move selection in chooseAiMove, not scoring here.
  *
  * Scoring:
  *   +1000  if the target square contains an enemy (capture / contest)
@@ -83,7 +104,7 @@ function buildCandidates(state: BoardState, faction: string): Candidate[] {
       let score = 0;
       let reason: AiAction['reason'] = 'random';
 
-      // 1. Capture bonus
+      // 1. Capture bonus — always +1000 regardless of difficulty
       const targetPieceId = state.squares[move.row][move.col].pieceId;
       if (targetPieceId) {
         const target = state.pieces[targetPieceId];
@@ -124,17 +145,49 @@ function buildCandidates(state: BoardState, faction: string): Candidate[] {
 /**
  * Choose the best legal AI move for `faction`.
  * Returns null if no legal moves exist (all pieces imprisoned or board is over).
+ *
+ * @param difficulty — 'normal' (default) or 'easy'.
+ *
+ * Normal: always takes the highest-scoring move (deterministic capture priority).
+ *
+ * Easy: 35% chance (EASY_CAPTURE_MISS_RATE) the AI "overlooks" the best capture
+ *   and falls back to the highest-scoring non-capture candidate instead.
+ *   The underlying scores are identical — only the selection step differs.
+ *   This makes the AI genuinely, measurably more forgiving at the decision
+ *   level, not just slightly slower or noisier.
  */
-export function chooseAiMove(state: BoardState, faction: 'light' | 'dark'): AiAction | null {
+export function chooseAiMove(
+  state: BoardState,
+  faction: 'light' | 'dark',
+  difficulty: AiDifficulty = 'normal',
+): AiAction | null {
   if (state.phase !== 'active') return null;
   if (state.turnFaction !== faction) return null;
 
   const candidates = buildCandidates(state, faction);
   if (candidates.length === 0) return null;
 
-  // Pick highest-scoring candidate
+  // Sort: highest score first
   candidates.sort((a, b) => b.score - a.score);
   const best = candidates[0];
+
+  // Easy difficulty: 35% chance to "overlook" the best capture and fall back
+  // to the best non-capture alternative. This is the real behavioral difference:
+  // the AI is not just slower — it genuinely misses available captures.
+  if (
+    difficulty === 'easy' &&
+    best.reason === 'capture' &&
+    Math.random() < EASY_CAPTURE_MISS_RATE
+  ) {
+    const fallback = candidates.find(c => c.reason !== 'capture');
+    if (fallback) {
+      return {
+        pieceId: fallback.pieceId,
+        targetCoord: fallback.targetCoord,
+        reason: fallback.reason,
+      };
+    }
+  }
 
   return {
     pieceId: best.pieceId,

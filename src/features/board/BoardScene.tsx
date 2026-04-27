@@ -26,6 +26,7 @@ import {
   playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
 } from './audioEngine';
 import { getAssetUrl } from '../../lib/packLoader';
+import { getDifficulty } from '../arena/difficultyConfig';
 import type { EncounterNode, EncounterType } from './campaignConfig';
 
 interface Props {
@@ -83,6 +84,15 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
   // ── 1.8: Audio state ────────────────────────────────────────────────────────
   const [audioMuted, setAudioMuted] = useState<boolean>(isMuted());
   const hasPreloaded = useRef(false);
+
+  // ARCHON-003 (Candidate B): Log scroll ref — auto-scrolls to newest entry.
+  // CSS already has overflow-y: auto; this ref drives the scroll position.
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [boardLog]);
 
   // Preload all sounds on first board interaction (respects browser autoplay policy)
   const ensurePreloaded = useCallback(() => {
@@ -157,10 +167,16 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     if (board.phase !== 'active') return;
     if (board.turnFaction !== AI_FACTION) return;
 
+    // ARCHON-003: read difficulty at the start of each AI turn so it reflects
+    // what the player selected on the title screen before this game.
+    const difficulty = getDifficulty();
+    // Easy: slower think (more forgiving feel); Normal: standard 750ms.
+    const aiDelay = difficulty === 'easy' ? 1100 : 750;
+
     setIsAiThinking(true);
     const t = setTimeout(() => {
       setIsAiThinking(false);
-      const action = chooseAiMove(board, AI_FACTION);
+      const action = chooseAiMove(board, AI_FACTION, difficulty);
       if (!action) return; // no legal moves — board already handles win/stalemate
 
       appendLog(describeAiAction(action, board));
@@ -201,7 +217,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         setBoard(result.nextState);
         playSound('move-dark').catch(() => {});
       }
-    }, 750);
+    }, aiDelay);
 
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -570,10 +586,10 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
         </aside>
       )}
 
-      {/* 1.0: Board event log */}
+      {/* 1.0 / ARCHON-003: Board event log — full history, auto-scrolls to newest */}
       {boardLog.length > 0 && (
-        <div className="board-log" id="board-log" aria-label="Game log">
-          {boardLog.slice(-6).map((entry, i) => (
+        <div className="board-log" id="board-log" ref={logRef} aria-label="Game log">
+          {boardLog.map((entry, i) => (
             <div key={i} className="board-log-entry">{entry}</div>
           ))}
         </div>
