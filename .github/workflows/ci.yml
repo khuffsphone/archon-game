@@ -1,0 +1,38 @@
+# .github/workflows/ci.yml
+# ARCHON-005 — CI/regression hardening baseline
+#
+# Runs on every push and pull_request to main.
+# Gates: npm run test:run (552 Vitest tests) + npm run build (tsc + vite).
+# No coverage thresholds. No deployment. No E2E.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Vitest suite (552 tests)
+        run: npm run test:run
+
+      - name: Build (tsc + vite)
+        run: npm run build
