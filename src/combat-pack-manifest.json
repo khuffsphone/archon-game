@@ -389,6 +389,28 @@
       "mime_type": "audio/wav",
       "source_pack": "archon-external-pack-v1",
       "source_milestone": "0.5"
+    },
+    {
+      "id": "combat-projectile-light",
+      "category": "spell",
+      "subcategory": "projectile",
+      "faction": "light",
+      "type": "image",
+      "path": "/assets/combat-projectile-light-v1.png",
+      "hash": "0388d547bd2575f180c0cbd20de843fff37d8dd60744ce69706499a5113a2021",
+      "mime_type": "image/png",
+      "source_milestone": "012A"
+    },
+    {
+      "id": "combat-projectile-dark",
+      "category": "spell",
+      "subcategory": "projectile",
+      "faction": "dark",
+      "type": "image",
+      "path": "/assets/combat-projectile-dark-v1.png",
+      "hash": "e602e4af36c8172a70e2a3cd6951e4575a3caf742ced8c3885b96a68ac77e291",
+      "mime_type": "image/png",
+      "source_milestone": "012A"
     }
   ]
 }

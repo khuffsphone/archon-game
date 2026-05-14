@@ -34,6 +34,10 @@ export interface ArenaConfig {
   enemy:    ArenaEntity;
   arenaUrl: string;
   faction:  'light' | 'dark';
+  /** Optional URLs for projectile VFX sprites — resolved from CombatPackManifest by ArenaScene.
+   *  When absent (asset not in pack), drawProjectiles() falls back to the procedural ellipse. */
+  projectileUrlLight?: string;
+  projectileUrlDark?:  string;
 }
 
 // ─── Input sets ───────────────────────────────────────────────────────────────
@@ -82,6 +86,10 @@ export class GameLoop {
   private effects: HitEffect[] = [];
   private projectiles: Projectile[] = [];
 
+  /** Preloaded projectile sprite images — null when not present in the combat pack */
+  private projImgLight: HTMLImageElement | null = null;
+  private projImgDark:  HTMLImageElement | null = null;
+
   private phase: 'countdown' | 'fighting' | 'result' = 'countdown';
   private countdownMs     = ARENA_COUNTDOWN_MS;
   private timeRemainingMs = ARENA_DURATION_MS;
@@ -106,6 +114,16 @@ export class GameLoop {
 
     canvas.width  = CANVAS_W;
     canvas.height = CANVAS_H;
+
+    // Preload projectile sprite images when URLs are supplied
+    if (config.projectileUrlLight) {
+      this.projImgLight = new Image();
+      this.projImgLight.src = config.projectileUrlLight;
+    }
+    if (config.projectileUrlDark) {
+      this.projImgDark = new Image();
+      this.projImgDark.src = config.projectileUrlDark;
+    }
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -407,7 +425,10 @@ export class GameLoop {
     drawFloor(ctx);
     drawEntity(ctx, this.player, this.player.attackState === 'active');
     drawEntity(ctx, this.enemy,  this.enemy.attackState  === 'active');
-    drawProjectiles(ctx, this.projectiles);
+    drawProjectiles(ctx, this.projectiles, {
+      light: this.projImgLight,
+      dark:  this.projImgDark,
+    });
     drawHitEffects(ctx, this.effects);
     if (this.phase === 'countdown') drawCountdown(ctx, Math.ceil(this.countdownMs / 1000));
   }

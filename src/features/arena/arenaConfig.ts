@@ -67,6 +67,10 @@ export const PROJECTILE_LIFETIME_MS = 1_200;
 export const PROJECTILE_W = 28;
 export const PROJECTILE_H = 20;
 
+/** Projectile sprite draw size — 2× hitbox for visual legibility. Physics uses PROJECTILE_W/H. */
+export const PROJECTILE_DRAW_W = 56;
+export const PROJECTILE_DRAW_H = 40;
+
 // ─── Role Multipliers ─────────────────────────────────────────────────────────
 
 export const ROLE_STATS = {

@@ -6,7 +6,7 @@
  */
 import type { ArenaEntity, HitEffect, Projectile } from './entities';
 import { BANSHEE_WAIL_RADIUS } from './entities';
-import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H, HIT_FX_MS, DEATH_FX_MS } from './arenaConfig';
+import { CANVAS_W, CANVAS_H, ARENA_BOUNDS, ENTITY_W, ENTITY_H, HIT_FX_MS, DEATH_FX_MS, PROJECTILE_DRAW_W, PROJECTILE_DRAW_H } from './arenaConfig';
 
 // Ability-specific effect durations (match values in gameLoop.ts / entities.ts)
 const REBIRTH_FX_MS = 900;
@@ -278,35 +278,60 @@ export function drawCountdown(
 export function drawProjectiles(
   ctx: CanvasRenderingContext2D,
   projectiles: Projectile[],
+  images?: { light: HTMLImageElement | null; dark: HTMLImageElement | null },
 ): void {
   for (const proj of projectiles) {
     const alpha = Math.min(1, proj.timeRemaining / 300);
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    const color = proj.faction === 'light'
-      ? 'hsl(200, 90%, 70%)'
-      : 'hsl(280, 80%, 70%)';
     const glowColor = proj.faction === 'light'
       ? 'hsl(200, 90%, 55%)'
       : 'hsl(280, 80%, 55%)';
 
-    // Glow trail
-    ctx.shadowBlur = 28;
-    ctx.shadowColor = glowColor;
+    const img = images?.[proj.faction];
+    if (img && img.complete && img.naturalWidth > 0) {
+      // ── Approved PNG sprite path ────────────────────────────────────────────
+      // Flip horizontally for leftward-facing projectiles so the bolt
+      // always appears to travel in the direction of motion.
+      const facingLeft = proj.vx < 0;
+      ctx.shadowBlur  = 20;
+      ctx.shadowColor = glowColor;
+      if (facingLeft) {
+        ctx.translate(proj.x, proj.y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -PROJECTILE_DRAW_W / 2, -PROJECTILE_DRAW_H / 2, PROJECTILE_DRAW_W, PROJECTILE_DRAW_H);
+      } else {
+        ctx.drawImage(img,
+          proj.x - PROJECTILE_DRAW_W / 2,
+          proj.y - PROJECTILE_DRAW_H / 2,
+          PROJECTILE_DRAW_W,
+          PROJECTILE_DRAW_H,
+        );
+      }
+    } else {
+      // ── Procedural fallback (no image in pack) ──────────────────────────────
+      const color = proj.faction === 'light'
+        ? 'hsl(200, 90%, 70%)'
+        : 'hsl(280, 80%, 70%)';
 
-    // Core bolt
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.ellipse(proj.x, proj.y, proj.width / 2, proj.height / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
+      // Glow trail
+      ctx.shadowBlur = 28;
+      ctx.shadowColor = glowColor;
 
-    // Bright center
-    ctx.fillStyle = '#fff';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.ellipse(proj.x, proj.y, proj.width / 5, proj.height / 5, 0, 0, Math.PI * 2);
-    ctx.fill();
+      // Core bolt
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(proj.x, proj.y, proj.width / 2, proj.height / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright center
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.ellipse(proj.x, proj.y, proj.width / 5, proj.height / 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   }

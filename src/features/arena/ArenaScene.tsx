@@ -125,6 +125,10 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
     const defenderTokenUrl = getAssetUrl(payload.pack, payload.defender.assetIds.token)
       ?? `/assets/unit-${payload.defender.faction}-${payload.defender.pieceId.split('-')[1] ?? 'sorceress'}-token-v1.png`;
 
+    // Projectile VFX sprites — optional; falls back to procedural ellipse when absent
+    const projUrlLight = getAssetUrl(payload.pack, 'combat-projectile-light') || undefined;
+    const projUrlDark  = getAssetUrl(payload.pack, 'combat-projectile-dark')  || undefined;
+
     const playerEntity = boardPieceToEntity(payload.attacker, 'player', attackerTokenUrl);
     const enemyEntity  = boardPieceToEntity(payload.defender, 'enemy',  defenderTokenUrl);
 
@@ -133,6 +137,8 @@ export function ArenaScene({ payload, callbacks }: ArenaSceneProps) {
       enemy:  enemyEntity,
       arenaUrl,
       faction,
+      projectileUrlLight: projUrlLight,
+      projectileUrlDark:  projUrlDark,
     });
 
     loop.onResult(handleResult);
