@@ -923,6 +923,36 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   100% { opacity: 0; transform: scale(1.2) translateY(-10px); }
 }
 
+/* ARCHON-012C: Projectile VFX — cosmetic bolt, board-launched combat only */
+.vfx-overlay--projectile { z-index: 28; /* below hit-flash (z:30), above arena-bg */ }
+
+.vfx-projectile-img {
+  width: 120px; height: auto;
+  animation: none; /* override vfx-flash from .vfx-overlay-img */
+  mix-blend-mode: screen;
+  opacity: 0.92;
+}
+
+/* Dark (right) → Light (left): overlay anchored defender=left, bolt travels right→left */
+.vfx-overlay--projectile.vfx-overlay--left .vfx-projectile-img {
+  animation: proj-rtl 250ms ease-out forwards;
+}
+
+/* Light (left) → Dark (right): overlay anchored defender=right, bolt travels left→right */
+.vfx-overlay--projectile.vfx-overlay--right .vfx-projectile-img {
+  animation: proj-ltr 250ms ease-out forwards;
+}
+
+@keyframes proj-rtl {
+  from { transform: translateX(80px);  opacity: 0.92; }
+  to   { transform: translateX(-80px); opacity: 0; }
+}
+
+@keyframes proj-ltr {
+  from { transform: translateX(-80px); opacity: 0.92; }
+  to   { transform: translateX(80px);  opacity: 0; }
+}
+
 /* Arena crest — bottom-center, ambient/decorative */
 .arena-crest {
   position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%);

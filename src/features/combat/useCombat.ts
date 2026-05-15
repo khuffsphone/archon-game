@@ -77,6 +77,17 @@ export function useCombat({ pack, audioEnabled, initialOverrides }: UseCombatOpt
       }
     }
 
+    // ARCHON-012C: emit projectile cue for CombatBridge overlay.
+    // Fires only on real attacks (hit or death) — stun skips have lastEvent === 'none'.
+    // state.turnFaction is the attacker; captured here before setState flips the turn.
+    if (next.lastEvent !== 'none') {
+      window.dispatchEvent(
+        new CustomEvent('combat:projectile-cue', {
+          detail: { faction: state.turnFaction },
+        })
+      );
+    }
+
     setState(next);
     setTimeout(() => setAnimating(false), 500);
   }, [state, animating, playSound]);

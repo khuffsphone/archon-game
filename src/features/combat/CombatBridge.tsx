@@ -13,13 +13,17 @@
  *   standalone: the v1.1.1 combat slice as-is (used by App.tsx directly)
  *   board-launched: receives payload, auto-starts, returns result via callback
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CombatScene } from './CombatScene';
 import type { CombatPackManifest } from '../../lib/types';
+import { getAssetUrl } from '../../lib/packLoader';
+import { makeInitialState } from './CombatEngine';
+import type { CombatInitOverrides } from './CombatEngine';
 import type {
   CombatLaunchPayload,
   CombatResultPayload,
   CombatBridgeCallbacks,
+  Faction,
 } from '../../lib/board-combat-contract';
 import type { ExtendedCombatResultPayload } from '../board/boardState';
 
@@ -61,6 +65,25 @@ interface AdapterProps {
 function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
   const { attacker, defender, pack } = payload;
   const hasReported = useRef(false);
+
+  // ── ARCHON-012C: projectile VFX overlay ──────────────────────────────────────
+  // Listens for 'combat:projectile-cue' dispatched by useCombat.ts on real attacks.
+  // Renders a sibling overlay div over the frozen CombatScene for ~250ms.
+  const [projVfx, setProjVfx] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
+
+  useEffect(() => {
+    function onProjectileCue(e: Event) {
+      const { faction } = (e as CustomEvent<{ faction: 'light' | 'dark' }>).detail;
+      // light attacks rightward (toward dark on right); dark attacks leftward (toward light on left).
+      const defenderSide: 'left' | 'right' = faction === 'light' ? 'right' : 'left';
+      const assetId = faction === 'light' ? 'combat-projectile-light' : 'combat-projectile-dark';
+      setProjVfx({ id: assetId, side: defenderSide });
+      setTimeout(() => setProjVfx(null), 250);
+    }
+    window.addEventListener('combat:projectile-cue', onProjectileCue);
+    return () => window.removeEventListener('combat:projectile-cue', onProjectileCue);
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Build HP overrides from board piece state so CombatEngine uses the actual
   // current HP values (e.g. HP=1 from ?setup=dark-wins) rather than roster defaults.
@@ -137,6 +160,21 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
           }
         }}
       />
+
+      {/* ARCHON-012C: Projectile VFX overlay — board-launched mode only.
+          Rendered as a sibling above CombatScene. Clears after 250ms.
+          Graceful fallback: if asset URL is empty, nothing renders. */}
+      {projVfx && (() => {
+        const url = getAssetUrl(pack, projVfx.id);
+        return url ? (
+          <div
+            className={`vfx-overlay vfx-overlay--${projVfx.side} vfx-overlay--projectile`}
+            id={`vfx-projectile-${projVfx.side}`}
+          >
+            <img src={url} alt="" className="vfx-overlay-img vfx-projectile-img" />
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 }
@@ -144,10 +182,6 @@ function BoardCombatAdapter({ payload, callbacks }: AdapterProps) {
 // ─── CombatSceneWithResult ────────────────────────────────────────────────────
 // Thin wrapper around CombatScene that detects the victory state
 // and fires a result callback. Replaces "Rematch" with "Return to Board".
-
-import { useState } from 'react';
-import { makeInitialState, CombatInitOverrides } from './CombatEngine';
-import type { Faction } from '../../lib/board-combat-contract';
 
 interface CombatResult {
   winner: Faction;
