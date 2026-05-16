@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Octane Street Racer — Multiplayer Prototype</title>
+  <style>
+    :root {
+      --bg: #090b12;
+      --panel: rgba(13, 18, 32, 0.92);
+      --cyan: #22d3ee;
+      --yellow: #facc15;
+      --red: #ef4444;
+      --green: #22c55e;
+      --white: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #1f2937 0%, var(--bg) 55%, #000 100%);
+      color: var(--white);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      touch-action: none;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      place-items: center;
+    }
+
+    canvas {
+      background: #16a34a;
+      border: 4px solid rgba(255,255,255,0.18);
+      box-shadow: 0 0 50px rgba(34,211,238,0.22);
+      max-width: 100vw;
+      max-height: 100vh;
+      image-rendering: pixelated;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.82);
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .title {
+      margin: 0 0 8px;
+      color: var(--cyan);
+      font-size: clamp(38px, 8vw, 88px);
+      line-height: 0.9;
+      letter-spacing: -0.08em;
+      text-shadow: 5px 5px 0 #1d4ed8;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin: 0 0 36px;
+      color: var(--yellow);
+      font-size: clamp(22px, 4vw, 48px);
+      text-shadow: 4px 4px 0 #b91c1c;
+      text-transform: uppercase;
+    }
+
+    .panel {
+      width: min(760px, calc(100vw - 32px));
+      padding: 24px;
+      border: 2px solid rgba(255,255,255,0.18);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 20px 70px rgba(0,0,0,0.6);
+    }
+
+    .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+
+    button, input {
+      border: 2px solid rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: var(--white);
+      background: #111827;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #ef4444, #991b1b);
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    button.secondary { background: linear-gradient(180deg, #374151, #111827); }
+    button.good { background: linear-gradient(180deg, #22c55e, #166534); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    input {
+      width: 160px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .status {
+      min-height: 28px;
+      color: var(--muted);
+      margin-top: 14px;
+      line-height: 1.5;
+    }
+
+    .room-code {
+      color: var(--yellow);
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+    }
+
+    .players {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .player-card {
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    .ready { color: var(--green); font-weight: 800; }
+    .not-ready { color: var(--red); font-weight: 800; }
+
+    #hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 4;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.65);
+      font-weight: 800;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="hud" class="hidden"></div>
+
+    <section id="splash-screen" class="overlay">
+      <h1 class="title">Octane</h1>
+      <h2 class="subtitle">Street Racer</h2>
+      <button onclick="showScreen('menu-screen')">Press Start</button>
+    </section>
+
+    <section id="menu-screen" class="overlay hidden">
+      <h1 class="title">Octane</h1>
+      <h2 class="subtitle">Street Racer</h2>
+      <div class="row">
+        <button onclick="startSoloGame()">Solo Race</button>
+        <button onclick="showScreen('multiplayer-screen')">Multiplayer Room</button>
+      </div>
+      <p class="status">Arrow keys drive. Space boosts. Multiplayer uses Firebase room sync.</p>
+    </section>
+
+    <section id="multiplayer-screen" class="overlay hidden">
+      <div class="panel">
+        <h2>Multiplayer Room</h2>
+        <p class="status">Create a room, share the code, then both players click Ready.</p>
+        <div class="row">
+          <button id="create-room-btn" onclick="createRoom()">Create Room</button>
+          <input id="join-code-input" maxlength="6" placeholder="ROOM" />
+          <button id="join-room-btn" onclick="joinRoomFromInput()">Join Room</button>
+        </div>
+        <div class="status" id="firebase-status">Firebase not initialized yet.</div>
+        <div id="room-panel" class="hidden">
+          <p>Room Code</p>
+          <div class="room-code" id="room-code-display">------</div>
+          <div class="players">
+            <div class="player-card">Player 1<br><span id="p1-status" class="not-ready">Waiting</span></div>
+            <div class="player-card">Player 2<br><span id="p2-status" class="not-ready">Waiting</span></div>
+          </div>
+          <div class="row">
+            <button id="ready-btn" class="good" onclick="toggleReady()">Ready</button>
+            <button class="secondary" onclick="leaveRoom()">Leave</button>
+          </div>
+          <p class="status" id="room-status">Waiting for players.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="gameover-screen" class="overlay hidden">
+      <div class="panel">
+        <h2>Crashed Out</h2>
+        <p>Score: <strong id="final-score">0</strong></p>
+        <p id="multiplayer-result" class="status"></p>
+        <button onclick="showScreen('menu-screen')">Menu</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    /*
+      Firebase setup:
+      1. Create Firebase project.
+      2. Add a Web App.
+      3. Enable Authentication > Anonymous.
+      4. Enable Cloud Firestore.
+      5. Replace placeholders below.
+    */
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      getDoc,
+      updateDoc,
+      onSnapshot,
+      runTransaction,
+      serverTimestamp
+    } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: 'PASTE_YOUR_API_KEY',
+      authDomain: 'PASTE_YOUR_PROJECT.firebaseapp.com',
+      projectId: 'PASTE_YOUR_PROJECT_ID',
+      storageBucket: 'PASTE_YOUR_PROJECT.appspot.com',
+      messagingSenderId: 'PASTE_YOUR_SENDER_ID',
+      appId: 'PASTE_YOUR_APP_ID'
+    };
+
+    const hasFirebaseConfig = !firebaseConfig.apiKey.startsWith('PASTE_');
+    let app = null;
+    let auth = null;
+    let db = null;
+    let uid = null;
+    let currentRoomCode = null;
+    let currentSlot = null;
+    let roomUnsub = null;
+    let raceStateUnsub = null;
+    let isReady = false;
+    let localRaceStarted = false;
+    let opponentGhost = null;
+    let lastRaceSync = 0;
+
+    const statusEl = document.getElementById('firebase-status');
+
+    if (hasFirebaseConfig) {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      signInAnonymously(auth).catch(err => setFirebaseStatus(`Auth error: ${err.message}`));
+      onAuthStateChanged(auth, user => {
+        if (!user) return;
+        uid = user.uid;
+        setFirebaseStatus(`Signed in anonymously: ${uid.slice(0, 8)}`);
+      });
+    } else {
+      setFirebaseStatus('Firebase placeholders detected. Add real config before multiplayer testing.');
+    }
+
+    function setFirebaseStatus(message) { statusEl.textContent = message; }
+    function requireFirebase() {
+      if (!db || !uid) {
+        setFirebaseStatus('Firebase is not ready. Add config and enable anonymous auth.');
+        return false;
+      }
+      return true;
+    }
+
+    function makeRoomCode() {
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+    }
+
+    window.createRoom = async function createRoom() {
+      if (!requireFirebase()) return;
+      const code = makeRoomCode();
+      const roomRef = doc(db, 'rooms', code);
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(roomRef);
+        if (snap.exists()) throw new Error('Room collision. Try again.');
+        tx.set(roomRef, {
+          roomCode: code,
+          status: 'waiting',
+          player1Id: uid,
+          player2Id: null,
+          player1Ready: false,
+          player2Ready: false,
+          createdAt: serverTimestamp(),
+          targetStartTime: null,
+          winnerId: null
+        });
+      });
+      currentRoomCode = code;
+      currentSlot = 'player1';
+      isReady = false;
+      await setDoc(doc(db, 'rooms', code, 'players', uid), { uid, slot: currentSlot, ready: false, joinedAt: serverTimestamp() }, { merge: true });
+      attachRoomListener(code);
+      showRoomPanel(code);
+    };
+
+    window.joinRoomFromInput = async function joinRoomFromInput() {
+      const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+      if (!code) return setFirebaseStatus('Enter a room code.');
+      await joinRoom(code);
+    };
+
+    async function joinRoom(code) {
+      if (!requireFirebase()) return;
+      const roomRef = doc(db, 'rooms', code);
+      await runTransaction(db, async tx => {
+        const snap = await tx.get(roomRef);
+        if (!snap.exists()) throw new Error('Room not found.');
+        const room = snap.data();
+        if (room.status !== 'waiting') throw new Error('Race already started.');
+        if (room.player1Id === uid) {
+          currentSlot = 'player1';
+          return;
+        }
+        if (room.player2Id && room.player2Id !== uid) throw new Error('Room is full.');
+        currentSlot = 'player2';
+        tx.update(roomRef, { player2Id: uid, player2Ready: false });
+      });
+      currentRoomCode = code;
+      isReady = false;
+      await setDoc(doc(db, 'rooms', code, 'players', uid), { uid, slot: currentSlot, ready: false, joinedAt: serverTimestamp() }, { merge: true });
+      attachRoomListener(code);
+      showRoomPanel(code);
+    }
+
+    function showRoomPanel(code) {
+      document.getElementById('room-panel').classList.remove('hidden');
+      document.getElementById('room-code-display').textContent = code;
+      document.getElementById('create-room-btn').disabled = true;
+      document.getElementById('join-room-btn').disabled = true;
+    }
+
+    function attachRoomListener(code) {
+      if (roomUnsub) roomUnsub();
+      roomUnsub = onSnapshot(doc(db, 'rooms', code), snap => {
+        if (!snap.exists()) return;
+        const room = snap.data();
+        renderRoom(room);
+        if (room.status === 'countdown' && room.targetStartTime && !localRaceStarted) {
+          const delay = Math.max(0, room.targetStartTime - Date.now());
+          document.getElementById('room-status').textContent = `Race starts in ${Math.ceil(delay / 1000)} seconds...`;
+          setTimeout(() => startMultiplayerRace(), delay);
+        }
+      });
+    }
+
+    function renderRoom(room) {
+      document.getElementById('p1-status').textContent = room.player1Id ? (room.player1Ready ? 'Ready' : 'Joined') : 'Waiting';
+      document.getElementById('p1-status').className = room.player1Ready ? 'ready' : 'not-ready';
+      document.getElementById('p2-status').textContent = room.player2Id ? (room.player2Ready ? 'Ready' : 'Joined') : 'Waiting';
+      document.getElementById('p2-status').className = room.player2Ready ? 'ready' : 'not-ready';
+      document.getElementById('room-status').textContent = room.status === 'waiting' ? 'Waiting for both players to ready up.' : `Room status: ${room.status}`;
+    }
+
+    window.toggleReady = async function toggleReady() {
+      if (!currentRoomCode || !currentSlot) return;
+      isReady = !isReady;
+      const patch = currentSlot === 'player1' ? { player1Ready: isReady } : { player2Ready: isReady };
+      await updateDoc(doc(db, 'rooms', currentRoomCode), patch);
+      await setDoc(doc(db, 'rooms', currentRoomCode, 'players', uid), { ready: isReady, lastSeen: serverTimestamp() }, { merge: true });
+      const snap = await getDoc(doc(db, 'rooms', currentRoomCode));
+      const room = snap.data();
+      if (room.player1Id && room.player2Id && room.player1Ready && room.player2Ready && room.status === 'waiting') {
+        await updateDoc(doc(db, 'rooms', currentRoomCode), {
+          status: 'countdown',
+          countdownStartedAt: serverTimestamp(),
+          targetStartTime: Date.now() + 3500
+        });
+      }
+    };
+
+    window.leaveRoom = function leaveRoom() {
+      if (roomUnsub) roomUnsub();
+      if (raceStateUnsub) raceStateUnsub();
+      currentRoomCode = null;
+      currentSlot = null;
+      isReady = false;
+      localRaceStarted = false;
+      document.getElementById('room-panel').classList.add('hidden');
+      document.getElementById('create-room-btn').disabled = false;
+      document.getElementById('join-room-btn').disabled = false;
+      showScreen('menu-screen');
+    };
+
+    async function startMultiplayerRace() {
+      if (localRaceStarted) return;
+      localRaceStarted = true;
+      if (currentRoomCode) {
+        attachRaceStateListener(currentRoomCode);
+        await updateDoc(doc(db, 'rooms', currentRoomCode), { status: 'playing', startedAt: serverTimestamp() }).catch(() => {});
+      }
+      startGame({ multiplayer: true });
+    }
+
+    function attachRaceStateListener(code) {
+      if (raceStateUnsub) raceStateUnsub();
+      const opponentId = currentSlot === 'player1' ? 'player2Id' : 'player1Id';
+      raceStateUnsub = onSnapshot(doc(db, 'rooms', code), async snap => {
+        const room = snap.data();
+        const otherUid = room && room[opponentId];
+        if (!otherUid) return;
+        onSnapshot(doc(db, 'rooms', code, 'raceState', otherUid), stateSnap => {
+          if (stateSnap.exists()) opponentGhost = stateSnap.data();
+        });
+      });
+    }
+
+    async function publishRaceState() {
+      if (!db || !uid || !currentRoomCode || !game.multiplayer) return;
+      const now = Date.now();
+      if (now - lastRaceSync < 200) return;
+      lastRaceSync = now;
+      await setDoc(doc(db, 'rooms', currentRoomCode, 'raceState', uid), {
+        x: game.player.x,
+        y: game.player.y,
+        speed: game.player.speed,
+        score: Math.floor(game.score),
+        distance: Math.floor(game.distance),
+        lives: game.lives,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    }
+
+    async function publishFinish() {
+      if (!db || !uid || !currentRoomCode || !game.multiplayer) return;
+      await setDoc(doc(db, 'rooms', currentRoomCode, 'players', uid), {
+        finalScore: Math.floor(game.score),
+        finished: true,
+        finishedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    }
+
+    // Expose multiplayer helpers to game loop.
+    window.__octaneMultiplayer = { publishRaceState, publishFinish, getOpponentGhost: () => opponentGhost };
+  </script>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const hud = document.getElementById('hud');
+
+    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Space: false };
+    const roadX = 200;
+    const roadW = 400;
+
+    let state = 'splash';
+    let lastTime = 0;
+    let traffic = [];
+
+    const game = {
+      multiplayer: false,
+      player: { x: 384, y: 492, w: 32, h: 64, speed: 0, gear: 1 },
+      score: 0,
+      distance: 0,
+      lives: 3,
+      boost: 0,
+      roadOffset: 0
+    };
+    window.game = game;
+
+    window.showScreen = function showScreen(id) {
+      document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+      document.getElementById(id)?.classList.remove('hidden');
+      hud.classList.add('hidden');
+      state = id === 'splash-screen' ? 'splash' : 'menu';
+    };
+
+    window.startSoloGame = function startSoloGame() { startGame({ multiplayer: false }); };
+
+    window.startGame = function startGame(options = {}) {
+      Object.assign(game, { multiplayer: !!options.multiplayer, score: 0, distance: 0, lives: 3, boost: 0, roadOffset: 0 });
+      game.player = { x: 384, y: 492, w: 32, h: 64, speed: 0, gear: 1 };
+      traffic = [];
+      state = 'playing';
+      document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+      hud.classList.remove('hidden');
+    };
+
+    window.addEventListener('keydown', e => {
+      if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+      if (e.code === 'Space') keys.Space = true;
+    });
+    window.addEventListener('keyup', e => {
+      if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+      if (e.code === 'Space') keys.Space = false;
+    });
+
+    function update(dt) {
+      if (state !== 'playing') return;
+      const p = game.player;
+      const accel = keys.Space && game.boost >= 100 ? 900 : 420;
+      if (keys.ArrowUp) p.speed += accel * dt;
+      else p.speed -= 120 * dt;
+      if (keys.ArrowDown) p.speed -= 520 * dt;
+      p.speed = Math.max(0, Math.min(p.speed, keys.Space && game.boost >= 100 ? 900 : 620));
+      if (keys.Space && game.boost >= 100) game.boost = 0;
+
+      const turn = 360 * dt * Math.max(0.35, 1 - p.speed / 900);
+      if (keys.ArrowLeft) p.x -= turn;
+      if (keys.ArrowRight) p.x += turn;
+      p.x = Math.max(roadX, Math.min(roadX + roadW - p.w, p.x));
+
+      game.distance += p.speed * dt;
+      game.score += p.speed * dt * 0.45;
+      game.roadOffset = (game.roadOffset + p.speed * dt) % 100;
+      game.boost = Math.min(100, game.boost + dt * 4);
+
+      if (Math.random() < 0.025 + game.distance / 500000) spawnTraffic();
+      for (let i = traffic.length - 1; i >= 0; i--) {
+        const car = traffic[i];
+        car.y += (p.speed - car.speed) * dt;
+        if (intersects(p, car)) crash();
+        if (car.y > 700 || car.y < -180) traffic.splice(i, 1);
+      }
+
+      window.__octaneMultiplayer?.publishRaceState?.();
+    }
+
+    function spawnTraffic() {
+      if (traffic.length > 10) return;
+      const laneW = roadW / 4;
+      const lane = Math.floor(Math.random() * 4);
+      traffic.push({ x: roadX + lane * laneW + laneW / 2 - 16, y: -90, w: 32, h: 64, speed: 90 + Math.random() * 180, color: `hsl(${Math.random() * 360}, 80%, 55%)` });
+    }
+
+    function crash() {
+      game.lives -= 1;
+      game.player.speed = 0;
+      traffic = [];
+      if (game.lives <= 0) gameOver();
+    }
+
+    function gameOver() {
+      state = 'gameover';
+      document.getElementById('final-score').textContent = Math.floor(game.score);
+      document.getElementById('multiplayer-result').textContent = game.multiplayer ? 'Final score reported to room.' : '';
+      window.__octaneMultiplayer?.publishFinish?.();
+      document.getElementById('gameover-screen').classList.remove('hidden');
+    }
+
+    function intersects(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function drawCar(x, y, w, h, color, ghost = false) {
+      ctx.save();
+      ctx.globalAlpha = ghost ? 0.45 : 1;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y + 8, w, h - 16);
+      ctx.fillRect(x + 4, y, w - 8, h);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + 6, y + 18, w - 12, 16);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(x + 4, y + 3, 6, 4);
+      ctx.fillRect(x + w - 10, y + 3, 6, 4);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, 800, 600);
+      ctx.fillStyle = '#16a34a';
+      ctx.fillRect(0, 0, 800, 600);
+      ctx.fillStyle = '#333';
+      ctx.fillRect(roadX, 0, roadW, 600);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      for (let y = -100 + game.roadOffset; y < 700; y += 100) {
+        ctx.fillRect(roadX + roadW / 4 - 2, y, 4, 50);
+        ctx.fillRect(roadX + roadW / 2 - 2, y, 4, 50);
+        ctx.fillRect(roadX + roadW * 0.75 - 2, y, 4, 50);
+      }
+
+      traffic.forEach(car => drawCar(car.x, car.y, car.w, car.h, car.color));
+      const ghost = window.__octaneMultiplayer?.getOpponentGhost?.();
+      if (ghost && state === 'playing') drawCar(ghost.x, ghost.y, 32, 64, '#22d3ee', true);
+      if (state === 'playing') drawCar(game.player.x, game.player.y, game.player.w, game.player.h, '#ef4444');
+
+      hud.innerHTML = `Score: ${Math.floor(game.score)}<br>Speed: ${Math.floor(game.player.speed)}<br>Lives: ${game.lives}<br>Boost: ${Math.floor(game.boost)}%`;
+    }
+
+    function loop(timestamp) {
+      const dt = Math.min(0.1, (timestamp - lastTime) / 1000 || 0);
+      lastTime = timestamp;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
