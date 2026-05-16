@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.player1Id == request.auth.uid;
+
+      allow update: if request.auth != null
+        && (
+          resource.data.player1Id == request.auth.uid ||
+          resource.data.player2Id == request.auth.uid ||
+          request.resource.data.player2Id == request.auth.uid
+        );
+
+      match /players/{playerId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && playerId == request.auth.uid;
+      }
+
+      match /raceState/{playerId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && playerId == request.auth.uid;
+      }
+    }
+  }
+}
