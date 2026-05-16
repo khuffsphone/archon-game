@@ -6,7 +6,8 @@
  *
  * RULES:
  * - Does NOT modify CombatScene.tsx (baseline is frozen)
- * - Does NOT modify useCombat.ts or CombatEngine.ts
+ * - Does NOT modify CombatEngine.ts (frozen)
+ * - useCombat.ts is used as projectile cue emitter (ARCHON-012C) — not frozen
  * - Only adds the thin adapter layer that satisfies CombatBridgeCallbacks
  *
  * Two modes:
