@@ -12,10 +12,10 @@ squares** and **power squares** rather than chess checkmate.
 duels when pieces clash.
 
 > **Pitch note:** Earlier drafts of this doc described "terrain that matters"
-> (forest/water/mountain/etc.) as the core hook. That system was never built.
-> The shipped game instead uses luminance + power squares. Whether true terrain
-> returns as a v4 feature is the one **unresolved** design decision — see Pillar
-> 2 below.
+> (forest/water/mountain/etc.) as the core hook. That system was never built and
+> has now been **formally rejected** (Creative Director, 2026-05-21). The board
+> mechanic is canonically **luminance + power squares** — see Pillar 2 below. The
+> elevator pitch no longer references terrain.
 
 **Target outcome:** Publishable Steam title, solo developer with AI augmentation.
 
@@ -29,24 +29,25 @@ duels when pieces clash.
 - **Tests:** 438 / 438 passing · `tsc --noEmit`: 0 errors.
 - **Platform:** Browser is the primary target (Vite + React). An Electron
   wrapper exists for a desktop launcher build but is secondary.
-- **Next work:** **Undefined / not committed.** Two things gate the next
-  milestone:
-  1. **Terrain decision** (Pillar 2) — resolve whether true terrain is a v4
-     feature or permanently replaced by luminance + power squares.
-  2. **v4 scope** — pick from the repo's recommended-next list (Hard/minimax
-     board AI, arena auto-routing to retire the `?arena=1` flag, campaign
-     progression v2) once the terrain question is settled.
-- Do not start a large new system until the Creative Director resolves the
-  above. Bug fixes, refactors, tests, and polish within shipped systems are
-  fine to proceed on.
+- **Next work: v4 scope, now unblocked.** The terrain question (formerly the
+  one open pillar) was **resolved 2026-05-21** in favor of luminance + power
+  squares (Pillar 2 — decided). All five pillars are now locked. The next
+  milestone is to define **v4 scope** from the repo's recommended-next list
+  (Hard/minimax board AI, arena auto-routing to retire the `?arena=1` flag,
+  campaign progression v2), pending:
+  1. an **asset inventory** (what approved exports exist vs. what v4 needs), and
+  2. a **v4 planning pass** to pick and sequence the milestone.
+- Bug fixes, refactors, tests, and polish within shipped systems are fine to
+  proceed on at any time.
 
 ---
 
 ## Design Pillars
 
-Four of the five original pillars were **decided implicitly by the shipped code**.
-They are documented here as locked decisions with the rationale visible in the
-codebase. The fifth (terrain) remains open.
+**All five pillars are now locked.** Four were decided implicitly by the shipped
+code; the fifth (terrain) was resolved by explicit Creative Director decision on
+2026-05-21. Each is documented below as a locked decision with the rationale
+visible in the codebase.
 
 ### 1. Combat style — **DECIDED: turn-based board + real-time arena duel**
 Board maneuvering is turn-based; when pieces contest a square the game launches
@@ -58,17 +59,25 @@ timer, and a 3-2-1-FIGHT countdown. `arenaAI.ts`, `arenaPhysics.ts`, and
 opposite of the original doc's "lean: turn-based" — the code chose
 Archon-classic arcade combat.
 
-### 2. Terrain philosophy — **UNRESOLVED (the one open pillar)**
-No terrain system exists in the codebase (no forest/water/mountain/wasteland/
-sacred/corrupted). Board squares instead carry `SquareLuminance`
-(`light | dark | neutral | contested`), and there are **5 power squares**
-(+2 HP/turn; capturing all 5 is an instant win).
-*Decision still owed:* Either (a) "terrain that matters" returns as a designed
-v4 system, or (b) luminance + power squares is the permanent answer and the
-elevator pitch drops terrain. **Do not silently pick a direction — surface this
-to the Creative Director.**
+### 2. Board mechanic — **DECIDED: luminance + power squares (terrain rejected)**
+The canonical board mechanic is `SquareLuminance`
+(`light | dark | neutral | contested`) plus **5 power squares** (+2 HP/turn;
+capturing all 5 is an instant win). No terrain system (forest/water/mountain/
+wasteland/sacred/corrupted) exists, and none is planned.
+*Decision:* Creative Director, **2026-05-21** — **Path A: embrace luminance +
+power squares as the canonical board mechanic.**
+*Rationale:* A month of playtesting validated that luminance advantage + the
+5-power-square capture-or-eliminate objective already produces the tactical
+depth originally attributed to "terrain that matters." Layering a terrain
+system on top would (a) introduce a third interacting board variable and risk
+cognitive overload, and (b) require modifying the **frozen**
+`board-combat-contract.ts`. The net cost outweighs the net unlock.
 *Evidence:* `src/lib/board-combat-contract.ts` (`SquareLuminance`,
 `BoardSquare`), `src/features/board/boardState.ts`.
+*Rejected direction (documented, not forbidden forever):* A designed terrain
+system — terrain types that modify movement/combat — was considered and
+**declined for v4**. It is not in scope. Revisiting it post-launch would require
+a fresh Creative Director decision and a contract-change blocker artifact.
 
 ### 3. Roster identity — **DECIDED: named characters, 7 per faction**
 Seven named pieces per side (Knight, Herald, Archer, Golem, Phoenix, Troll,
@@ -112,7 +121,8 @@ something is "fun."
 - Drafting design proposals for the human to react to
 
 **Ask first:**
-- Anything touching the **terrain decision** (Pillar 2) or reopening a locked pillar
+- Reopening any locked pillar — including revisiting the rejected terrain
+  direction (Pillar 2), which additionally requires a contract-change blocker
 - Any change to combat feel, balance math (`arenaConfig.ts` constants,
   `ROLE_STATS`), or the core game loop
 - Any change to the **frozen** `src/lib/board-combat-contract.ts` (requires a
@@ -164,9 +174,10 @@ smallest change that would fix it, (d) the cost of not fixing it now.
 - **AI-art perception.** Steam audiences are hostile to obvious AI assets.
   Defense: distinctive style commitment + human polish passes + transparent
   dev-log communication. The provenance pipeline supports this.
-- **Pitch/identity drift.** The shipped game lost the "terrain that matters"
-  hook. Decide whether to reclaim it (v4 terrain) or re-message the pitch around
-  luminance/power-square control. Unresolved = marketing risk.
+- **Pitch/identity messaging.** The "terrain that matters" hook is gone by
+  decision; the pitch is now luminance + power-square control. Marketing copy,
+  the Steam page, and dev-log communication must lead with that mechanic, not
+  terrain — keep messaging consistent so the identity reads as intentional.
 - **Scope creep.** Multiplayer, branching campaign, mod support, custom piece
   editor — none in v1. Ship the core.
 - **Balance complexity.** 7 pieces × 4 roles × real-time arena = balance hell.
@@ -217,7 +228,9 @@ Shipped through v3.7 (see `MILESTONE_3_RC.md` for the detailed feature table):
 - [x] Single-player AI opponent (board AI + arena AI; Easy/Normal)
 - [x] Campaign meta-layer (campaign map, 3 encounters, progression v1)
 - [x] Save / resume (localStorage, single slot)
-- [ ] **Terrain decision + v4 scope** — *blocking; pending Creative Director*
+- [x] Terrain decision — *resolved 2026-05-21: luminance + power squares
+      (terrain rejected)*
+- [ ] **v4 scope** — *define next; pending asset inventory + v4 planning*
 - [ ] Hard AI (minimax/alpha-beta board AI) — recommended 3.8
 - [ ] Arena auto-routing (retire `?arena=1` flag) — recommended 3.9
 - [ ] Campaign progression v2 (win/loss tracking, encounter sequence)
