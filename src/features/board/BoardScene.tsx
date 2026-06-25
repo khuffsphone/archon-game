@@ -21,6 +21,10 @@ import {
   checkPowerSquareWin, getPowerSquareControlMap, getPowerSquareController,
 } from './boardState';
 import type { BoardPieceState } from './boardState';
+import {
+  healthBarModel, detectNewlyDowned, pruneDownedBodies,
+} from './combatReadability';
+import type { DownedBody } from './combatReadability';
 import { chooseAiMove, describeAiAction } from './aiEngine';
 import {
   playSound, playMusic, stopMusic, toggleMute, isMuted, preloadSounds,
@@ -138,19 +142,34 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
   }, [board.turnFaction, board.phase]);
 
   // ── 1.0: Cure flash — detect imprisoned→false transitions ──────────────────
+  // ── combat-readability: also drives hit feedback + downed-body persistence ──
   const [justCuredId, setJustCuredId] = useState<string | null>(null);
+  const [justDamagedId, setJustDamagedId] = useState<string | null>(null);
+  const [downedBodies, setDownedBodies] = useState<DownedBody[]>([]);
   const prevPiecesRef = useRef<Record<string, BoardPieceState>>({});
 
   useEffect(() => {
     const prev = prevPiecesRef.current;
-    for (const [id, piece] of Object.entries(board.pieces as Record<string, BoardPieceState>)) {
-      const wasImprisoned = (prev[id] as BoardPieceState | undefined)?.imprisoned;
-      if (wasImprisoned && !(piece as BoardPieceState).imprisoned) {
+    const next = board.pieces as Record<string, BoardPieceState>;
+    for (const [id, piece] of Object.entries(next)) {
+      const before = prev[id] as BoardPieceState | undefined;
+      // Imprisonment cleared → cure flash (existing behaviour)
+      if (before?.imprisoned && !piece.imprisoned) {
         setJustCuredId(id);
         appendLog(`✨ ${piece.name} imprisonment cleared`);
       }
+      // Took damage and survived → restrained hit flash + flinch
+      if (before && !piece.isDead && piece.hp < before.hp) {
+        setJustDamagedId(id);
+      }
     }
-    prevPiecesRef.current = board.pieces as Record<string, BoardPieceState>;
+    // Newly downed units → transient desaturated bodies. detectNewlyDowned reads
+    // the alive→dead transition the pure sim already produced; no state is mutated.
+    const fresh = detectNewlyDowned(prev, next, Date.now());
+    if (fresh.length > 0) {
+      setDownedBodies(bodies => pruneDownedBodies([...bodies, ...fresh], Date.now()));
+    }
+    prevPiecesRef.current = next;
   }, [board.pieces, appendLog]);
 
   useEffect(() => {
@@ -158,6 +177,24 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
     const t = setTimeout(() => setJustCuredId(null), 900);
     return () => clearTimeout(t);
   }, [justCuredId]);
+
+  // Clear the hit flash once the short flinch animation has played.
+  useEffect(() => {
+    if (!justDamagedId) return;
+    const t = setTimeout(() => setJustDamagedId(null), 520);
+    return () => clearTimeout(t);
+  }, [justDamagedId]);
+
+  // Cleanup expired downed bodies — wakes once at the soonest expiry.
+  useEffect(() => {
+    if (downedBodies.length === 0) return;
+    const soonest = Math.min(...downedBodies.map(b => b.expiresAt));
+    const t = setTimeout(
+      () => setDownedBodies(bodies => pruneDownedBodies(bodies, Date.now())),
+      Math.max(0, soonest - Date.now()) + 16,
+    );
+    return () => clearTimeout(t);
+  }, [downedBodies]);
 
   // ── 1.6: AI v1 — Dark faction CPU ──────────────────────────────────────────
   const AI_FACTION = 'dark' as const;
@@ -435,6 +472,16 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                 {/* Coord debug label (small) */}
                 <span className="sq-coord">{rowIdx},{colIdx}</span>
 
+                {/* Downed-body persistence — desaturated corpse lingers a few
+                    seconds where the unit fell, even after the victor advances
+                    onto this square. Skip the body the dead-on-square path below
+                    already draws, to avoid a double render. */}
+                {downedBodies
+                  .filter(b => b.coord.row === rowIdx && b.coord.col === colIdx && square.pieceId !== b.pieceId)
+                  .map(b => (
+                    <DownedBodyToken key={`downed-${b.pieceId}`} body={b} pack={pack} />
+                  ))}
+
                 {/* Piece token */}
                 {piece && !piece.isDead && (
                   <PieceToken
@@ -442,6 +489,7 @@ export function BoardScene({ pack, boardState: board, onBoardStateChange: setBoa
                     pack={pack}
                     isSelected={isSelected}
                     justCured={justCuredId === piece.pieceId}
+                    justDamaged={justDamagedId === piece.pieceId}
                   />
                 )}
                 {piece && piece.isDead && (
@@ -632,9 +680,11 @@ interface TokenProps {
   isSelected?: boolean;
 }
 
-function PieceToken({ piece, pack, isSelected, justCured }: TokenProps & { justCured?: boolean }) {
+function PieceToken({ piece, pack, isSelected, justCured, justDamaged }: TokenProps & { justCured?: boolean; justDamaged?: boolean }) {
   const tokenUrl = getAssetUrl(pack, piece.assetIds.token);
   const imprisonBadgeUrl = piece.imprisoned ? getAssetUrl(pack, 'spell-imprison-icon-v1') : null;
+  // Restrained, faction-tinted HP bar — hidden at full health to avoid clutter.
+  const hp = healthBarModel(piece);
   return (
     <div
       className={[
@@ -643,6 +693,7 @@ function PieceToken({ piece, pack, isSelected, justCured }: TokenProps & { justC
         isSelected ? 'piece-token--selected' : '',
         piece.imprisoned ? 'piece-token--imprisoned' : '',
         justCured ? 'piece-token--just-cured' : '',
+        justDamaged ? 'piece-token--just-damaged' : '',
       ].filter(Boolean).join(' ')}
       title={piece.imprisoned
         ? `${piece.name} (${piece.faction}) — IMPRISONED — ${piece.hp}/${piece.maxHp} HP`
@@ -660,12 +711,18 @@ function PieceToken({ piece, pack, isSelected, justCured }: TokenProps & { justC
             : <span className="imprisoned-badge-fallback">🔒</span>}
         </div>
       )}
-      <div className="piece-hp-bar">
-        <div
-          className="piece-hp-fill"
-          style={{ width: `${(piece.hp / piece.maxHp) * 100}%` }}
-        />
-      </div>
+      {hp.visible && (
+        <div className="piece-hp-bar" aria-label={`${piece.hp}/${piece.maxHp} HP`}>
+          <div
+            className={[
+              'piece-hp-fill',
+              `piece-hp-fill--${piece.faction}`,
+              hp.low ? 'piece-hp-fill--low' : '',
+            ].filter(Boolean).join(' ')}
+            style={{ width: `${hp.pct}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -676,6 +733,28 @@ function DefeatedToken({ piece, pack }: TokenProps) {
     <div className={`piece-token piece-token--defeated piece-token--${piece.faction}`}>
       {defeatedUrl
         ? <img src={defeatedUrl} alt={`${piece.name} (defeated)`} className="piece-token-img piece-token-img--defeated" />
+        : <span className="piece-token-fallback piece-token-fallback--dead">☠</span>
+      }
+    </div>
+  );
+}
+
+/**
+ * Transient corpse for a unit that has just fallen. Drawn behind the live token
+ * so the victor can stand over it. Deliberately carries NO faction colour —
+ * canon: a downed body is desaturated, never rival-red.
+ */
+function DownedBodyToken({ body, pack }: { body: DownedBody; pack: CombatPackManifest }) {
+  const defeatedUrl = getAssetUrl(pack, body.defeatedAssetId);
+  return (
+    <div
+      className="piece-token piece-token--defeated downed-body"
+      id={`downed-body-${body.pieceId}`}
+      aria-hidden="true"
+      title={`${body.name} — downed`}
+    >
+      {defeatedUrl
+        ? <img src={defeatedUrl} alt="" className="piece-token-img piece-token-img--defeated" />
         : <span className="piece-token-fallback piece-token-fallback--dead">☠</span>
       }
     </div>

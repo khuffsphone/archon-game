@@ -1084,6 +1084,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .piece-token-fallback--dead { font-size: 1rem; opacity: 0.5; }
 .piece-hp-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(0,0,0,0.5); }
 .piece-hp-fill { height: 100%; background: var(--success); transition: width 0.3s ease; }
+/* combat-readability: restrained, faction-tinted fill; danger tint when critical */
+.piece-hp-fill--light { background: var(--light); }
+.piece-hp-fill--dark  { background: var(--dark-clr); }
+.piece-hp-fill--low   { background: var(--danger); box-shadow: 0 0 5px hsla(0,72%,58%,0.7); }
 
 /* Imprisoned token (0.7) */
 .piece-token--imprisoned {
@@ -1205,6 +1209,33 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 }
 .piece-token--just-cured {
   animation: cure-flash 0.9s ease-out forwards !important;
+}
+
+/* combat-readability: hit feedback — restrained red flash + brief flinch on damage */
+@keyframes damage-flash {
+  0%   { box-shadow: 0 0 0 0 hsla(0,80%,55%,0); transform: translateX(0); }
+  12%  { box-shadow: 0 0 16px hsla(0,85%,60%,0.9), 0 0 0 3px hsla(0,80%,55%,0.5); transform: translateX(-3px); }
+  34%  { transform: translateX(3px); }
+  56%  { transform: translateX(-2px); }
+  78%  { transform: translateX(1px); }
+  100% { box-shadow: 0 0 0 0 hsla(0,80%,55%,0); transform: translateX(0); }
+}
+.piece-token--just-damaged {
+  animation: damage-flash 0.5s ease-out forwards !important;
+}
+
+/* combat-readability: downed-body persistence — desaturated corpse that lingers
+   a few seconds before cleanup. Sits behind the live token (z-index 1 < 2) and
+   carries no faction colour (canon: downed is grey, never rival-red). */
+.downed-body {
+  position: absolute; inset: 0; margin: auto;
+  z-index: 1; pointer-events: none; cursor: default;
+  border-color: transparent !important; box-shadow: none !important;
+  animation: downed-settle 0.45s ease-out both;
+}
+@keyframes downed-settle {
+  0%   { opacity: 0;   transform: scale(1.06); }
+  100% { opacity: 0.4; transform: scale(1); }
 }
 
 
