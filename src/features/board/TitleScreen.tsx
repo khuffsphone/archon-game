@@ -47,6 +47,7 @@ const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [
 ];
 
 const CONTROLS = [
+  { key: 'F1',           action: 'Help — controls & glossary (any screen)' },
   { key: 'Click piece',  action: 'Select / deselect' },
   { key: 'Click square', action: 'Move or attack' },
   { key: 'Heal button',  action: 'Cure or heal adjacent ally' },

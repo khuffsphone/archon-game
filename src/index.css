@@ -1433,3 +1433,147 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
   0%, 100% { box-shadow: 0 0 6px hsl(280,75%,45%,0.2); }
   50%       { box-shadow: 0 0 18px hsl(280,90%,65%,0.6); }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Lane J — Help / Controls Overlay (F1)
+   App-level modal; sits above every other layer (title-screen z:1000).
+═══════════════════════════════════════════════════════════════ */
+.help-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 10, 0.82);
+  backdrop-filter: blur(10px);
+  animation: gameover-fade-in 0.35s ease-out;
+}
+
+.help-card {
+  display: flex; flex-direction: column;
+  width: min(920px, 94vw);
+  max-height: 88vh;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05),
+    0 0 60px hsla(43,90%,55%,0.18),
+    0 32px 80px rgba(0,0,0,0.7);
+  overflow: hidden;
+  animation: gameover-slide-up 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.help-card__header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.help-card__title {
+  font: 900 22px 'Cinzel', serif;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 24px hsla(43,90%,55%,0.25);
+}
+.help-card__subtitle {
+  font: 400 12px 'Inter', sans-serif;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.help-card__close {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 32px; height: 32px; border-radius: 8px;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.help-card__close:hover, .help-card__close:focus-visible {
+  background: rgba(255,255,255,0.12);
+  border-color: var(--accent);
+  color: var(--text);
+  outline: none;
+}
+
+.help-card__body {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 28px;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+@media (max-width: 680px) {
+  .help-card__body { grid-template-columns: 1fr; gap: 22px; }
+}
+
+.help-section__heading {
+  font: 700 11px 'Cinzel', serif;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 8px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Controls list */
+.help-keybinds { display: flex; flex-direction: column; gap: 14px; }
+.help-keygroup__context {
+  font: 600 12px 'Inter', sans-serif;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.help-keygroup__note {
+  font: 400 11px 'Inter', sans-serif;
+  color: var(--text-muted);
+  margin: -2px 0 6px;
+  opacity: 0.85;
+}
+.help-keyrow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 5px 2px;
+}
+.help-keyrow__keys {
+  display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0; min-width: 116px;
+  flex-wrap: wrap;
+}
+.help-keyrow__key-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.help-key {
+  font: 600 11px 'Inter', sans-serif;
+  padding: 2px 7px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 4px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.help-key-sep { color: var(--text-muted); font-size: 10px; opacity: 0.7; }
+.help-keyrow__action {
+  font: 400 12px 'Inter', sans-serif;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Glossary */
+.help-glossary { display: flex; flex-direction: column; gap: 12px; }
+.help-glossary__item { display: flex; flex-direction: column; gap: 3px; }
+.help-glossary__term {
+  font: 700 13px 'Cinzel', serif;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.help-glossary__def {
+  font: 400 12px 'Inter', sans-serif;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.help-card__footer {
+  flex-shrink: 0;
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font: 400 11px 'Inter', sans-serif;
+  color: var(--text-muted);
+}
+.help-card__footer .help-key { margin: 0 1px; }

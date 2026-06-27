@@ -4,6 +4,7 @@ import { BoardScene } from './features/board/BoardScene';
 import { TitleScreen } from './features/board/TitleScreen';
 import { CampaignMap } from './features/board/CampaignMap';
 import { ArenaScene } from './features/arena/ArenaScene';
+import { HelpOverlay } from './components/HelpOverlay';
 import { CombatPackManifest } from './lib/types';
 import { validatePack } from './lib/packLoader';
 import combatPackData from './combat-pack-manifest.json';
@@ -72,7 +73,7 @@ function getInitialBoardState(): BoardState {
   return makeInitialBoardState();
 }
 
-export default function App() {
+function GameApp() {
   const [pack, setPack] = useState<CombatPackManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AppMode>(getInitialMode);
@@ -325,5 +326,21 @@ export default function App() {
       {modeToggle}
       <CombatBridge mode="standalone" pack={pack} />
     </div>
+  );
+}
+
+/**
+ * App wraps the game with the always-mounted HelpOverlay so the F1 help modal
+ * is available in every mode (title, campaign, board, combat/arena). GameApp
+ * returns early per mode, so the overlay is mounted here as a sibling rather
+ * than threaded into each branch — a single HUD mount. HelpOverlay owns its
+ * own visibility + F1 listener, so this is the only wiring it needs.
+ */
+export default function App() {
+  return (
+    <>
+      <GameApp />
+      <HelpOverlay />
+    </>
   );
 }
